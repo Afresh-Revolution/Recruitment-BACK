@@ -1,8 +1,11 @@
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import cors from "cors";
 import morgan from "morgan";
 
 import { companyRouter } from "./routes/company.routes.js";
+import { uploadRouter } from "./routes/upload.routes.js";
 import { heroRouter } from "./routes/hero.routes.js";
 import { poweredRouter } from "./routes/powered.routes.js";
 import { opportunitiesRouter } from "./routes/opportunities.routes.js";
@@ -36,6 +39,10 @@ export function createApp() {
   );
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+
+  app.use("/api/upload", uploadRouter);
   app.use("/api/company", companyRouter);
   app.use("/api/hero", heroRouter);
   app.use("/api/powered", poweredRouter);

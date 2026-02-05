@@ -32,7 +32,6 @@ export async function sendApplicationStatusEmail(
   const subject = approved
     ? `Application approved – ${companyName}`
     : `Application update – ${companyName}`;
-  const statusText = approved ? "approved" : "not moving forward";
   const body = message
     ? message
     : approved

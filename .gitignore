@@ -3,6 +3,10 @@ node_modules
 .env.local
 dist
 build
+# Uploaded image files (folder is kept; contents ignored)
+uploads/*
+!uploads/.gitkeep
+!uploads/README.md
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

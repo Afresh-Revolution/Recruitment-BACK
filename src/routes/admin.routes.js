@@ -6,6 +6,7 @@ export const adminRouter = express.Router();
 
 // ─── Public (no JWT) ──────────────────────────────────────────────────────
 adminRouter.post("/seed-super-admin", adminController.seedSuperAdmin);
+adminRouter.post("/test-email", adminController.testEmail);
 adminRouter.post("/login", adminController.login);
 
 // ─── All admin routes below require JWT (adminAuth) ────────────────────────

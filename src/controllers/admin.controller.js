@@ -56,6 +56,56 @@ export async function seedSuperAdmin(req, res, next) {
 }
 
 /**
+ * POST /api/admin/test-email
+ * Send a test approval email to check SMTP config. Requires X-Super-Admin-Secret header.
+ * Body: { to: "your@email.com" } (optional; defaults to SMTP_USER or returns error)
+ */
+export async function testEmail(req, res, next) {
+  try {
+    const secret = process.env.SUPER_ADMIN_SECRET;
+    if (!secret) {
+      return res.status(501).json({
+        ok: false,
+        message: "SUPER_ADMIN_SECRET not configured",
+      });
+    }
+    const provided = req.headers["x-super-admin-secret"] || req.body?.secret;
+    if (provided !== secret) {
+      return res.status(403).json({ ok: false, message: "Forbidden: invalid secret" });
+    }
+    const to = (req.body?.to || process.env.SMTP_USER || "").trim();
+    if (!to) {
+      return res.status(400).json({
+        ok: false,
+        message: "Provide 'to' in body (e.g. { \"to\": \"your@email.com\" }) or set SMTP_USER in .env",
+      });
+    }
+    const result = await sendApplicationStatusEmail(
+      to,
+      "Test Applicant",
+      "Test Company",
+      "Test Role",
+      true,
+      "This is a test email from the recruitment backend. If you received this, SMTP is working."
+    );
+    if (result.sent) {
+      return res.status(200).json({
+        ok: true,
+        message: "Test email sent successfully",
+        data: { to, messageId: result.messageId },
+      });
+    }
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to send test email",
+      error: result.error,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * POST /api/admin/login
  * Body: { email, password }
  * Returns JWT with adminId, role, companyId (for company_admin).

@@ -58,11 +58,75 @@ That company admin can then log in and use their dashboard for that company only
 - When a company admin (or super admin) sets an application’s status to `approved` or `rejected`, the backend calls `sendApplicationStatusEmail(toEmail, applicantName, companyName, roleTitle, approved, message)`.
 - Applicant email is taken from `application.data.email`. If missing, status is still updated but no email is sent and the response indicates `emailSent: false`.
 
+---
+
+## How to test that email works
+
+### Option 1: Run the test script (no server)
+
+From the project root:
+
+```bash
+node test-email.js your@email.com
+```
+
+If you set `SMTP_USER` in `.env`, you can run:
+
+```bash
+node test-email.js
+```
+
+- **Success:** prints `OK – Email sent. MessageId: ...`
+- **Failure:** prints `FAIL –` and the error (e.g. invalid credentials, connection refused).
+
+### Option 2: Call the test endpoint (server must be running)
+
+1. Start the server: `npm run dev`
+2. Send a request with your **super admin secret** and the inbox you want to test:
+
+```http
+POST http://localhost:5000/api/admin/test-email
+X-Super-Admin-Secret: your-strong-one-time-secret
+Content-Type: application/json
+
+{ "to": "your@email.com" }
+```
+
+- **Success:** response `{ "ok": true, "message": "Test email sent successfully", "data": { "to": "...", "messageId": "..." } }`
+- **Failure:** response includes `ok: false` and an `error` message.
+
+### SMTP setup (choose one)
+
+**Gmail (real inbox):**
+
+1. In `.env` set:
+   - `SMTP_HOST=smtp.gmail.com`
+   - `SMTP_PORT=587`
+   - `SMTP_SECURE=false`
+   - `SMTP_USER=your@gmail.com`
+   - `SMTP_PASS=` an [App Password](https://myaccount.google.com/apppasswords) (not your normal password)
+   - `MAIL_FROM=your@gmail.com` or your app name
+2. Run `node test-email.js your@gmail.com` or use the test endpoint with `"to": "your@gmail.com"`.
+
+**Ethereal (fake inbox for testing):**
+
+1. Go to [https://ethereal.email/create](https://ethereal.email/create) and create a test account.
+2. Copy the SMTP credentials into `.env`:
+   - `SMTP_HOST=smtp.ethereal.email`
+   - `SMTP_PORT=587`
+   - `SMTP_USER=` (from Ethereal)
+   - `SMTP_PASS=` (from Ethereal)
+   - `MAIL_FROM=` (e.g. the Ethereal user email)
+3. Run `node test-email.js` (it will send to `SMTP_USER`). Check the Ethereal inbox or the preview URL they show when you send.
+
+---
+
 ## API summary
 
 | Method | Endpoint | Auth | Role | Description |
 |--------|----------|------|------|-------------|
 | POST | `/api/admin/seed-super-admin` | Secret header | - | One-time: create first super admin |
+| POST | `/api/admin/test-email` | Secret header | - | Send a test email (body: `{ "to": "your@email.com" }`) |
 | POST | `/api/admin/login` | - | - | Login (email + password), returns JWT |
 | GET | `/api/admin/company-admins` | JWT | super_admin | List company admins |
 | POST | `/api/admin/company-admins` | JWT | super_admin | Create company admin |

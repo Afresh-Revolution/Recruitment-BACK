@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "test:db": "node test-db-connection.js"
+    "test:db": "node test-db-connection.js",
+    "test:email": "node test-email.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -16,11 +17,10 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
     "morgan": "^1.10.0",
+    "multer": "^2.0.2",
     "nodemailer": "^6.9.16"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
   }
 }
-
-
