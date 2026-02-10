@@ -8,7 +8,8 @@ const PORT = Number(process.env.PORT || 5000);
 // Check if MONGODB_URI is loaded
 if (!process.env.MONGODB_URI) {
   console.error("❌ MONGODB_URI not found in environment variables!");
-  console.error("Please create a .env file with your MongoDB connection string.");
+  console.error("Local: create a .env file with MONGODB_URI.");
+  console.error("Render: add MONGODB_URI in Dashboard → Your Service → Environment.");
   process.exit(1);
 }
 
