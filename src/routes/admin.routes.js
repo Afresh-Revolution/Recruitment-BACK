@@ -6,6 +6,7 @@ export const adminRouter = express.Router();
 
 // ─── Public (no JWT) ──────────────────────────────────────────────────────
 adminRouter.post("/seed-super-admin", adminController.seedSuperAdmin);
+adminRouter.post("/reset-password", adminController.resetAdminPassword);
 adminRouter.post("/test-email", adminController.testEmail);
 adminRouter.post("/login", adminController.login);
 
@@ -22,6 +23,8 @@ adminRouter.get("/applications/summary", adminController.listApplicationSummary)
 adminRouter.get("/applications/export-csv", adminController.exportApplicationsCsv);
 adminRouter.get("/applications", adminController.listApplications);
 adminRouter.get("/applications/:id", adminController.getOneApplication);
+// Admin-only file download (Bearer token). Use for resume when behind auth.
+adminRouter.get("/uploads/:filename", adminController.serveUploadedFile);
 adminRouter.patch("/applications/:id/status", adminController.setApplicationStatus);
 adminRouter.patch("/applications/:id", adminController.updateApplication);
 adminRouter.delete("/applications/:id", adminController.deleteApplication);

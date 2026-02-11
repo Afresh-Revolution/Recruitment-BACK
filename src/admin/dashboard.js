@@ -1,9 +1,6 @@
 /**
- * Admin Dashboard (C.A.G.E)
- * Name: "Admin Dashboard" – Manage and review job applications.
- * Use with baseURL (e.g. your API origin) and admin token from login.
+ * Admin Dashboard (C.A.G.E) – config and API helpers.
  */
-
 const DASHBOARD = {
   name: "Admin Dashboard",
   subtitle: "Manage and review job applications",
@@ -22,9 +19,6 @@ const KPI_KEYS = {
   hired: "hired",
 };
 
-/**
- * @param {string} baseURL - e.g. "https://your-api.onrender.com" or "http://localhost:5000"
- */
 function api(baseURL) {
   return {
     async login(email, password) {
@@ -37,32 +31,22 @@ function api(baseURL) {
       if (!res.ok) throw new Error(json.message || "Login failed");
       return json;
     },
-
     async getSummary(token, companyId = null) {
       const url = new URL(`${baseURL}${PATHS.summary}`);
       if (companyId) url.searchParams.set("companyId", companyId);
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Failed to fetch summary");
       return json;
     },
-
     async downloadCsv(token, companyId = null) {
       const url = new URL(`${baseURL}${PATHS.exportCsv}`);
       if (companyId) url.searchParams.set("companyId", companyId);
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.message || "Export failed");
-      }
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition");
-      const match = disposition && disposition.match(/filename="?([^";]+)"?/);
-      const filename = match ? match[1] : `admin-dashboard-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+      const d = res.headers.get("Content-Disposition");
+      const filename = (d && d.match(/filename="?([^";]+)"?/)?.[1]) || `applications-${new Date().toISOString().slice(0, 10)}.csv`;
       return { blob, filename };
     },
   };

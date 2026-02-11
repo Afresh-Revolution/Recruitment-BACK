@@ -1,0 +1,135 @@
+{
+  "_comment": "Copy the body you need for each endpoint. Base URL: https://recruitment-back.onrender.com",
+  "POST /api/company": {
+    "name": "Company A",
+    "slug": "company_a",
+    "logo": "https://example.com/logo.png",
+    "description": "Short description",
+    "backgroundImage": "https://example.com/bg.jpg",
+    "partnerTag": "Partner",
+    "active": true
+  },
+  "PATCH /api/company/:id": {
+    "name": "Company A Updated",
+    "description": "New description"
+  },
+  "POST /api/hero": {
+    "companyId": "COMPANY_MONGO_ID_HERE",
+    "navigation": {
+      "logo": "C.A.G.E",
+      "links": [
+        { "label": "Home", "path": "/", "active": true },
+        { "label": "Browse Jobs", "path": "/jobs", "active": false }
+      ]
+    },
+    "headline": {
+      "main": "Accelerate your growth with",
+      "highlight": "top talent",
+      "highlightIcon": "⚡"
+    },
+    "description": "Join a network where companies and talent connect.",
+    "cta": { "text": "Apply Now", "link": "/apply" },
+    "features": [
+      { "label": "Smart Matching", "icon": "+", "highlighted": true },
+      { "label": "Analytics", "icon": null, "highlighted": false }
+    ],
+    "isActive": true
+  },
+  "POST /api/formdata": {
+    "companyId": "COMPANY_MONGO_ID_HERE",
+    "roleId": "ROLE_MONGO_ID_HERE",
+    "applicantId": null,
+    "data": {
+      "fullName": "Jane Doe",
+      "email": "jane@example.com",
+      "phone": "+1234567890",
+      "address": "Lagos, Nigeria",
+      "educationStatus": "Graduate",
+      "role": "Senior Software Engineer",
+      "workingDaysTime": "Mondays–Fridays 10am–5pm",
+      "motivation": "I want to grow with your team.",
+      "attachmentUrl": "/uploads/1738123456790-xyz789.pdf",
+      "resumeUrl": "/uploads/1738123456790-xyz789.pdf",
+      "workRemotely": true
+    }
+  },
+  "PATCH /api/formdata/:id": {
+    "data": {
+      "fullName": "Jane Doe Updated",
+      "email": "jane.new@example.com"
+    }
+  },
+  "POST /api/admin/login": {
+    "email": "admin@example.com",
+    "password": "your-password"
+  },
+  "POST /api/admin/seed-super-admin": {
+    "_headers": "X-Super-Admin-Secret: YOUR_SUPER_ADMIN_SECRET",
+    "email": "super@example.com",
+    "password": "securePassword",
+    "name": "Super Admin"
+  },
+  "POST /api/admin/company-admins": {
+    "_headers": "Authorization: Bearer <admin-jwt>",
+    "email": "companyadmin@example.com",
+    "password": "password",
+    "name": "Company Admin",
+    "companyId": "COMPANY_MONGO_ID_HERE"
+  },
+  "PATCH /api/admin/applications/:id/status": {
+    "_headers": "Authorization: Bearer <admin-jwt>",
+    "status": "reviewed",
+    "message": "Optional custom message to applicant (used in email body)"
+  },
+  "PATCH /api/admin/applications/:id": {
+    "_headers": "Authorization: Bearer <admin-jwt>",
+    "data": {
+      "fullName": "Marcus Chen",
+      "email": "marcus.c@design.io",
+      "resumeUrl": "/uploads/1738123456790-xyz789.pdf"
+    }
+  },
+  "POST /api/powered": {
+    "companyId": "COMPANY_MONGO_ID_OR_NULL",
+    "title": "POWERED BY:",
+    "partners": [
+      { "name": "Partner A", "logoUrl": "https://...", "link": "https://...", "order": 0 },
+      { "name": "Partner B", "logoText": "B®", "link": "https://...", "order": 1 }
+    ]
+  },
+  "POST /api/opportunities": {
+    "companyId": "COMPANY_MONGO_ID_OR_NULL",
+    "trendingLabel": "Trending Opportunities",
+    "sectionTitle": "Available Roles",
+    "roleIds": ["ROLE_ID_1", "ROLE_ID_2"],
+    "viewMoreButton": { "text": "View More Roles →", "link": "/roles" }
+  },
+  "POST /api/whychooseus": {
+    "companyId": "COMPANY_MONGO_ID_OR_NULL",
+    "sectionKey": "why_choose_us",
+    "headline": "Why join us",
+    "description": "We support talent and companies.",
+    "isActive": true
+  },
+  "POST /api/gallery": {
+    "companyId": "COMPANY_MONGO_ID_OR_NULL",
+    "categoryTag": "Life at Cage",
+    "title": "Our Gallery",
+    "subtitle": "A glimpse into our community.",
+    "images": [
+      { "url": "/uploads/123.jpg", "alt": "Team", "order": 0 }
+    ],
+    "copyright": "© 2026 Cage. All rights reserved."
+  },
+  "POST /api/formrequirement": {
+    "companyId": "COMPANY_MONGO_ID_HERE",
+    "roleId": "ROLE_MONGO_ID_HERE",
+    "jobTitle": "Managing Director",
+    "jobDescription": "Lead the team and strategy.",
+    "jobRequirements": ["5+ years experience", "Leadership skills"],
+    "jobQualifications": ["MBA or equivalent", "Proven track record"],
+    "jobDuration": "Full-time",
+    "applicationDeadline": "15th January, 2026",
+    "deadlineDate": "2026-01-15T23:59:59.000Z"
+  }
+}

@@ -1,11 +1,22 @@
 import bcrypt from "bcrypt";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import { Admin } from "../models/Admin.js";
 import { Company } from "../models/Company.js";
 import { FormData } from "../models/FormData.js";
 import { generateToken } from "../utils/generateToken.js";
 import { sendApplicationStatusEmail } from "../utils/email.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOAD_DIR = path.join(__dirname, "../../uploads");
 const SALT_ROUNDS = 10;
+
+/** Resume URL for admin UI: prefer data.resumeUrl, then data.attachmentUrl. */
+function getResumeUrl(data) {
+  const url = data?.resumeUrl ?? data?.attachmentUrl ?? null;
+  return typeof url === "string" && url.trim() !== "" ? url.trim() : null;
+}
 
 /**
  * POST /api/admin/seed-super-admin
@@ -99,6 +110,41 @@ export async function testEmail(req, res, next) {
       ok: false,
       message: "Failed to send test email",
       error: result.error,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/admin/reset-password
+ * Reset an admin's password by email. Requires X-Super-Admin-Secret header.
+ * Body: { email, newPassword }
+ * Use when admin exists but password was forgotten or wrong.
+ */
+export async function resetAdminPassword(req, res, next) {
+  try {
+    const secret = process.env.SUPER_ADMIN_SECRET;
+    if (!secret) {
+      return res.status(501).json({ ok: false, message: "SUPER_ADMIN_SECRET not configured" });
+    }
+    const provided = req.headers["x-super-admin-secret"] || req.body?.secret;
+    if (provided !== secret) {
+      return res.status(403).json({ ok: false, message: "Forbidden: invalid secret" });
+    }
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json({ ok: false, message: "email and newPassword required" });
+    }
+    const admin = await Admin.findOne({ email: email.trim().toLowerCase() });
+    if (!admin) {
+      return res.status(404).json({ ok: false, message: "No admin found with this email" });
+    }
+    admin.passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await admin.save();
+    res.status(200).json({
+      ok: true,
+      message: "Password updated. Use POST /api/admin/login with the new password.",
     });
   } catch (error) {
     next(error);
@@ -239,19 +285,19 @@ export async function deleteCompanyAdmin(req, res, next) {
 
 /**
  * GET /api/admin/applications/summary
- * Returns counts for Admin Dashboard KPIs: total, pending, interviewing, hired.
- * Company admin: their company only. Super admin: all or filter by companyId query.
+ * Returns counts for Admin Dashboard KPIs. Super admin: sees ALL applications (or filter by ?companyId). Company admin: their company only.
  */
 export async function listApplicationSummary(req, res, next) {
   try {
     const { companyId } = req.query;
     const admin = req.admin;
     let filter = {};
-    if (admin.role === "company_admin") {
+    if (admin.role === "company_admin" && admin.companyId) {
       filter.companyId = admin.companyId;
     } else if (companyId) {
       filter.companyId = companyId;
     }
+    // else: super_admin with no companyId query → filter stays {} = all applications
     const [total, pending, interviewing, hired] = await Promise.all([
       FormData.countDocuments(filter),
       FormData.countDocuments({ ...filter, status: "pending" }),
@@ -269,15 +315,14 @@ export async function listApplicationSummary(req, res, next) {
 
 /**
  * GET /api/admin/applications/export-csv
- * Stream CSV of applications for Admin Dashboard "Export CSV" button.
- * Company admin: their company only. Super admin: all or filter by companyId query.
+ * Super admin: exports ALL applications (or ?companyId). Company admin: their company only.
  */
 export async function exportApplicationsCsv(req, res, next) {
   try {
     const { companyId } = req.query;
     const admin = req.admin;
     let filter = {};
-    if (admin.role === "company_admin") {
+    if (admin.role === "company_admin" && admin.companyId) {
       filter.companyId = admin.companyId;
     } else if (companyId) {
       filter.companyId = companyId;
@@ -329,16 +374,15 @@ export async function exportApplicationsCsv(req, res, next) {
 
 /**
  * GET /api/admin/applications
- * Status section: list applications with optional status filter and search (applicant, role, company).
- * Company admin: their company only. Super admin: all or ?companyId=xxx.
- * Query: ?status=pending|reviewed|interviewing|hired|approved|rejected & ?search=...
+ * Super admin: sees EVERY application (or filter by ?companyId). Company admin: their company only.
+ * Query: ?status=... & ?search=... & ?companyId=xxx (optional, super_admin only).
  */
 export async function listApplications(req, res, next) {
   try {
     const { companyId, status, search } = req.query;
     const admin = req.admin;
     let filter = {};
-    if (admin.role === "company_admin") {
+    if (admin.role === "company_admin" && admin.companyId) {
       filter.companyId = admin.companyId;
     } else if (companyId) {
       filter.companyId = companyId;
@@ -368,7 +412,15 @@ export async function listApplications(req, res, next) {
         .populate("roleId", "title")
         .sort({ createdAt: -1 });
     }
-    res.status(200).json({ ok: true, data: list });
+    const data = list.map((app) => {
+      const doc = app.toObject ? app.toObject() : app;
+      doc.resumeUrl = getResumeUrl(doc.data);
+      if (doc.resumeUrl && !doc.data) doc.data = {};
+      if (doc.data && !doc.data.resumeUrl && doc.resumeUrl) doc.data.resumeUrl = doc.resumeUrl;
+      if (doc.data && !doc.data.attachmentUrl && doc.resumeUrl) doc.data.attachmentUrl = doc.resumeUrl;
+      return doc;
+    });
+    res.status(200).json({ ok: true, data });
   } catch (error) {
     next(error);
   }
@@ -376,7 +428,7 @@ export async function listApplications(req, res, next) {
 
 /**
  * GET /api/admin/applications/:id
- * Application Details modal: fetch one application by id (company-scoped for company_admin).
+ * Super admin: can view ANY application. Company admin: only their company.
  */
 export async function getOneApplication(req, res, next) {
   try {
@@ -388,18 +440,46 @@ export async function getOneApplication(req, res, next) {
     if (!application) {
       return res.status(404).json({ ok: false, message: "Application not found" });
     }
-    if (admin.role === "company_admin" && !admin.companyId.equals(application.companyId._id)) {
+    if (admin.role === "company_admin" && admin.companyId && !admin.companyId.equals(application.companyId._id)) {
       return res.status(403).json({ ok: false, message: "You can only view applications for your company" });
     }
-    res.status(200).json({ ok: true, data: application });
+    const doc = application.toObject ? application.toObject() : application;
+    doc.resumeUrl = getResumeUrl(doc.data);
+    if (doc.data && !doc.data.resumeUrl && doc.resumeUrl) doc.data.resumeUrl = doc.resumeUrl;
+    if (doc.data && !doc.data.attachmentUrl && doc.resumeUrl) doc.data.attachmentUrl = doc.resumeUrl;
+    res.status(200).json({ ok: true, data: doc });
   } catch (error) {
     next(error);
   }
 }
 
 /**
- * PATCH /api/admin/applications/:id – update application document (e.g. data); use .../status for status.
- * Company admin: their company only. Body: any FormData fields except status (use .../status for that).
+ * GET /api/admin/uploads/:filename
+ * Serve an uploaded file (e.g. resume) with admin auth. Use when downloads are behind auth.
+ * Frontend: GET baseUrl + "/api/admin/uploads/" + filename with Authorization: Bearer <token>.
+ */
+export async function serveUploadedFile(req, res, next) {
+  try {
+    const { filename } = req.params;
+    if (!filename || filename.includes("..") || path.isAbsolute(filename)) {
+      return res.status(400).json({ ok: false, message: "Invalid filename" });
+    }
+    const safeName = path.basename(filename);
+    const filePath = path.join(UPLOAD_DIR, safeName);
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return res.status(404).json({ ok: false, message: "File not found" });
+    }
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+    res.sendFile(safeName, { root: UPLOAD_DIR }, (err) => {
+      if (err) next(err);
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/admin/applications/:id – update application (e.g. data). Super admin: any application. Company admin: their company only.
  */
 export async function updateApplication(req, res, next) {
   try {
@@ -409,7 +489,7 @@ export async function updateApplication(req, res, next) {
     if (!application) {
       return res.status(404).json({ ok: false, message: "Application not found" });
     }
-    if (admin.role === "company_admin" && !admin.companyId.equals(application.companyId._id)) {
+    if (admin.role === "company_admin" && admin.companyId && !admin.companyId.equals(application.companyId._id)) {
       return res.status(403).json({ ok: false, message: "You can only update applications for your company" });
     }
     const { status, reviewedAt, reviewedBy, ...allowedBody } = req.body;
@@ -423,7 +503,7 @@ export async function updateApplication(req, res, next) {
 }
 
 /**
- * DELETE /api/admin/applications/:id – delete application. Company admin: their company only.
+ * DELETE /api/admin/applications/:id – Super admin: delete ANY application. Company admin: their company only.
  */
 export async function deleteApplication(req, res, next) {
   try {
@@ -433,7 +513,7 @@ export async function deleteApplication(req, res, next) {
     if (!application) {
       return res.status(404).json({ ok: false, message: "Application not found" });
     }
-    if (admin.role === "company_admin" && !admin.companyId.equals(application.companyId)) {
+    if (admin.role === "company_admin" && admin.companyId && !admin.companyId.equals(application.companyId)) {
       return res.status(403).json({ ok: false, message: "You can only delete applications for your company" });
     }
     await FormData.findByIdAndDelete(id);
@@ -445,9 +525,9 @@ export async function deleteApplication(req, res, next) {
 
 /**
  * PATCH /api/admin/applications/:id/status
- * Company admin: set application status; optionally send email on approved/hired or rejected.
+ * Super admin: approve/decline ANY application. Company admin: only their company.
  * Body: { status: "pending" | "reviewed" | "interviewing" | "hired" | "approved" | "rejected", message?: string }
- * Applicant has no password – they are notified by email from this dashboard when approved/hired or rejected.
+ * Sends email to applicant when status is approved/hired or rejected.
  */
 export async function setApplicationStatus(req, res, next) {
   try {
@@ -467,7 +547,7 @@ export async function setApplicationStatus(req, res, next) {
       return res.status(404).json({ ok: false, message: "Application not found" });
     }
     const admin = req.admin;
-    if (admin.role === "company_admin" && !admin.companyId.equals(application.companyId._id)) {
+    if (admin.role === "company_admin" && admin.companyId && !admin.companyId.equals(application.companyId._id)) {
       return res.status(403).json({ ok: false, message: "You can only review applications for your company" });
     }
     application.status = status;

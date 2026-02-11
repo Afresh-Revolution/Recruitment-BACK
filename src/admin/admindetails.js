@@ -1,8 +1,6 @@
 /**
- * Application Details – admin dashboard modal/detail view.
- * Name: "Application Details" (ID, status, applicant info, position, documents, Mark as Reviewed).
+ * Application Details modal – config and API helpers.
  */
-
 const APPLICATION_DETAILS = {
   name: "Application Details",
   idLabel: "ID",
@@ -19,25 +17,18 @@ const APPLICATION_DETAILS = {
   markAsReviewedButton: "Mark as Reviewed",
 };
 
-/** Format display ID from backend _id (e.g. APP-002 or use short id) */
 function formatDisplayId(id) {
-  if (!id) return "—";
+  if (!id) return "-";
   const str = typeof id === "string" ? id : id.toString();
-  const short = str.slice(-6).toUpperCase();
-  return `APP-${short}`;
+  return `APP-${str.slice(-6).toUpperCase()}`;
 }
 
-/** Map API application to detail view shape for the modal */
 function toDetailView(app) {
   const fullName = app.data?.fullName ?? app.data?.name ?? "";
   const email = app.data?.email ?? "";
   const documents = app.data?.resumeUrl
     ? [{ name: "Resume.pdf", url: app.data.resumeUrl, type: "PDF Document" }]
-    : (app.data?.documents || []).map((d) => ({
-        name: d.name || d.filename || "Document",
-        url: d.url || d.path,
-        type: d.type || "Document",
-      }));
+    : (app.data?.documents || []).map((d) => ({ name: d.name || d.filename || "Document", url: d.url || d.path, type: d.type || "Document" }));
   return {
     id: app._id,
     displayId: formatDisplayId(app._id),
@@ -53,9 +44,6 @@ function toDetailView(app) {
   };
 }
 
-/**
- * @param {string} baseURL - e.g. "https://your-api.onrender.com" or "http://localhost:5000"
- */
 function api(baseURL) {
   return {
     async getApplication(token, applicationId) {
@@ -63,21 +51,17 @@ function api(baseURL) {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Application not found");
+      if (!res.ok) throw new Error(json.message || "Not found");
       return { ...json, data: toDetailView(json.data) };
     },
-
     async markAsReviewed(token, applicationId, message = null) {
       const res = await fetch(`${baseURL}/api/admin/applications/${applicationId}/status`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: "reviewed", ...(message && { message }) }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Failed to update status");
+      if (!res.ok) throw new Error(json.message || "Failed");
       return json;
     },
   };

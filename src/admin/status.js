@@ -1,8 +1,6 @@
 /**
- * Status section of the Admin Dashboard
- * Name: "Status" – table of applicants with search and status filter.
+ * Status section – config and API helpers.
  */
-
 const STATUS_SECTION = {
   name: "Status",
   searchPlaceholder: "Search by applicant, role, or company...",
@@ -13,7 +11,7 @@ const FILTER_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "reviewed", label: "Reviewed" },
   { value: "interviewing", label: "Interviewing" },
-  { value: "hired", label: "Accepted" }, // UI "Accepted" = backend "hired" or "approved"
+  { value: "hired", label: "Accepted" },
   { value: "approved", label: "Accepted" },
   { value: "rejected", label: "Rejected" },
 ];
@@ -26,7 +24,6 @@ const TABLE_COLUMNS = [
   { key: "status", header: "STATUS" },
 ];
 
-/** Map backend status to display label */
 function statusLabel(status) {
   if (status === "hired" || status === "approved") return "Accepted";
   if (status === "pending") return "Pending";
@@ -36,7 +33,6 @@ function statusLabel(status) {
   return status || "Pending";
 }
 
-/** Build one table row from API application document */
 function toTableRow(app) {
   const name = app.data?.fullName ?? app.data?.name ?? "";
   const email = app.data?.email ?? "";
@@ -52,48 +48,29 @@ function toTableRow(app) {
   };
 }
 
-/**
- * @param {string} baseURL - e.g. "https://your-api.onrender.com" or "http://localhost:5000"
- */
 function api(baseURL) {
   return {
-    async getApplications(token, { companyId = null, status = null, search = null } = {}) {
+    async getApplications(token, opts = {}) {
       const url = new URL(`${baseURL}/api/admin/applications`);
-      if (companyId) url.searchParams.set("companyId", companyId);
-      if (status) url.searchParams.set("status", status);
-      if (search && String(search).trim()) url.searchParams.set("search", String(search).trim());
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (opts.companyId) url.searchParams.set("companyId", opts.companyId);
+      if (opts.status) url.searchParams.set("status", opts.status);
+      if (opts.search && String(opts.search).trim()) url.searchParams.set("search", String(opts.search).trim());
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Failed to fetch applications");
-      return {
-        ...json,
-        data: (json.data || []).map(toTableRow),
-      };
+      if (!res.ok) throw new Error(json.message || "Failed to fetch");
+      return { ...json, data: (json.data || []).map(toTableRow) };
     },
-
     async setApplicationStatus(token, applicationId, status, message = null) {
       const res = await fetch(`${baseURL}/api/admin/applications/${applicationId}/status`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status, ...(message && { message }) }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message || "Failed to update status");
+      if (!res.ok) throw new Error(json.message || "Failed to update");
       return json;
     },
   };
 }
 
-export {
-  STATUS_SECTION,
-  FILTER_OPTIONS,
-  TABLE_COLUMNS,
-  statusLabel,
-  toTableRow,
-  api,
-};
+export { STATUS_SECTION, FILTER_OPTIONS, TABLE_COLUMNS, statusLabel, toTableRow, api };
