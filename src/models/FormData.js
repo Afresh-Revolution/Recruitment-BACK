@@ -14,10 +14,10 @@ const formDataSchema = new mongoose.Schema(
     roleId: { type: mongoose.Schema.Types.ObjectId, ref: "Role", required: true },
     applicantId: { type: mongoose.Schema.Types.ObjectId, default: null },
     data: { type: mongoose.Schema.Types.Mixed, default: {} },
-    // Admin approval/rejection – no password for applicants; they get an email from admin
+    // Admin pipeline: pending → reviewed → interviewing → hired/accepted, or rejected (approved = legacy)
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "reviewed", "approved", "interviewing", "hired", "rejected"],
       default: "pending",
     },
     reviewedAt: { type: Date, default: null },

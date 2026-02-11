@@ -5,4 +5,5 @@ export const formdataRouter = express.Router();
 
 formdataRouter.get("/", formdataController.getByCompany);
 formdataRouter.post("/", formdataController.create);
+formdataRouter.patch("/:id", formdataController.update);
 formdataRouter.delete("/:id", formdataController.remove);

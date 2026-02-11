@@ -1,9 +1,17 @@
 import express from "express";
-import { getHeroByCompany, upsertHero } from "../controllers/hero.controller.js";
+import {
+  getHeroByCompany,
+  getHeroById,
+  upsertHero,
+  updateHero,
+  removeHero,
+} from "../controllers/hero.controller.js";
 
 export const heroRouter = express.Router();
 
-// GET /api/hero?companyId=xxx  or  GET /api/hero (returns first active hero)
 heroRouter.get("/", getHeroByCompany);
+heroRouter.get("/by-id/:id", getHeroById);
 heroRouter.get("/:companyId", getHeroByCompany);
 heroRouter.post("/", upsertHero);
+heroRouter.patch("/:id", updateHero);
+heroRouter.delete("/:id", removeHero);

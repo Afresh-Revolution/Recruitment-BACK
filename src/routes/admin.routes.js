@@ -18,5 +18,10 @@ adminRouter.post("/company-admins", requireSuperAdmin, adminController.createCom
 adminRouter.delete("/company-admins/:id", requireSuperAdmin, adminController.deleteCompanyAdmin);
 
 // ─── Company Admin (and Super Admin): applications ─────────────────────────
+adminRouter.get("/applications/summary", adminController.listApplicationSummary);
+adminRouter.get("/applications/export-csv", adminController.exportApplicationsCsv);
 adminRouter.get("/applications", adminController.listApplications);
+adminRouter.get("/applications/:id", adminController.getOneApplication);
 adminRouter.patch("/applications/:id/status", adminController.setApplicationStatus);
+adminRouter.patch("/applications/:id", adminController.updateApplication);
+adminRouter.delete("/applications/:id", adminController.deleteApplication);

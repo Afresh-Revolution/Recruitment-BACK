@@ -4,4 +4,7 @@ import * as formrequirementController from "../controllers/formrequirement.contr
 export const formrequirementRouter = express.Router();
 
 formrequirementRouter.get("/", formrequirementController.getByJob);
+formrequirementRouter.get("/:id", formrequirementController.getById);
 formrequirementRouter.post("/", formrequirementController.upsert);
+formrequirementRouter.patch("/:id", formrequirementController.update);
+formrequirementRouter.delete("/:id", formrequirementController.remove);

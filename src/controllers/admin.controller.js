@@ -235,13 +235,44 @@ export async function deleteCompanyAdmin(req, res, next) {
   }
 }
 
-// ─── Company Admin: applications (approve/reject, send email) ───────────────
+// ─── Company Admin: applications (list, summary, export, status) ─────────────
 
 /**
- * GET /api/admin/applications
- * Company admin: list applications for their company. Super admin: list all or by companyId query.
+ * GET /api/admin/applications/summary
+ * Returns counts for Admin Dashboard KPIs: total, pending, interviewing, hired.
+ * Company admin: their company only. Super admin: all or filter by companyId query.
  */
-export async function listApplications(req, res, next) {
+export async function listApplicationSummary(req, res, next) {
+  try {
+    const { companyId } = req.query;
+    const admin = req.admin;
+    let filter = {};
+    if (admin.role === "company_admin") {
+      filter.companyId = admin.companyId;
+    } else if (companyId) {
+      filter.companyId = companyId;
+    }
+    const [total, pending, interviewing, hired] = await Promise.all([
+      FormData.countDocuments(filter),
+      FormData.countDocuments({ ...filter, status: "pending" }),
+      FormData.countDocuments({ ...filter, status: "interviewing" }),
+      FormData.countDocuments({ ...filter, status: { $in: ["hired", "approved"] } }),
+    ]);
+    res.status(200).json({
+      ok: true,
+      data: { total, pending, interviewing, hired },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/admin/applications/export-csv
+ * Stream CSV of applications for Admin Dashboard "Export CSV" button.
+ * Company admin: their company only. Super admin: all or filter by companyId query.
+ */
+export async function exportApplicationsCsv(req, res, next) {
   try {
     const { companyId } = req.query;
     const admin = req.admin;
@@ -254,7 +285,89 @@ export async function listApplications(req, res, next) {
     const list = await FormData.find(filter)
       .populate("companyId", "name")
       .populate("roleId", "title")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const headers = [
+      "Application ID",
+      "Company",
+      "Role",
+      "Applicant Name",
+      "Email",
+      "Status",
+      "Applied At",
+      "Reviewed At",
+    ];
+    const escapeCsv = (val) => {
+      if (val == null) return "";
+      const s = String(val);
+      return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = list.map((app) => {
+      const name = app.data?.fullName ?? app.data?.name ?? "";
+      const email = app.data?.email ?? "";
+      return [
+        app._id.toString(),
+        app.companyId?.name ?? "",
+        app.roleId?.title ?? "",
+        name,
+        email,
+        app.status ?? "pending",
+        app.createdAt ? new Date(app.createdAt).toISOString() : "",
+        app.reviewedAt ? new Date(app.reviewedAt).toISOString() : "",
+      ];
+    });
+    const csv = [headers.join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
+    const filename = `admin-dashboard-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/admin/applications
+ * Status section: list applications with optional status filter and search (applicant, role, company).
+ * Company admin: their company only. Super admin: all or ?companyId=xxx.
+ * Query: ?status=pending|reviewed|interviewing|hired|approved|rejected & ?search=...
+ */
+export async function listApplications(req, res, next) {
+  try {
+    const { companyId, status, search } = req.query;
+    const admin = req.admin;
+    let filter = {};
+    if (admin.role === "company_admin") {
+      filter.companyId = admin.companyId;
+    } else if (companyId) {
+      filter.companyId = companyId;
+    }
+    if (status && ["pending", "reviewed", "approved", "interviewing", "hired", "rejected"].includes(status)) {
+      filter.status = status;
+    }
+    let list;
+    if (search && String(search).trim()) {
+      const term = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(term, "i");
+      list = await FormData.find(filter)
+        .populate("companyId", "name")
+        .populate("roleId", "title")
+        .sort({ createdAt: -1 });
+      list = list.filter(
+        (app) =>
+          regex.test(app.data?.fullName ?? "") ||
+          regex.test(app.data?.name ?? "") ||
+          regex.test(app.data?.email ?? "") ||
+          regex.test(app.companyId?.name ?? "") ||
+          regex.test(app.roleId?.title ?? "")
+      );
+    } else {
+      list = await FormData.find(filter)
+        .populate("companyId", "name")
+        .populate("roleId", "title")
+        .sort({ createdAt: -1 });
+    }
     res.status(200).json({ ok: true, data: list });
   } catch (error) {
     next(error);
@@ -262,19 +375,89 @@ export async function listApplications(req, res, next) {
 }
 
 /**
+ * GET /api/admin/applications/:id
+ * Application Details modal: fetch one application by id (company-scoped for company_admin).
+ */
+export async function getOneApplication(req, res, next) {
+  try {
+    const { id } = req.params;
+    const admin = req.admin;
+    const application = await FormData.findById(id)
+      .populate("companyId", "name")
+      .populate("roleId", "title");
+    if (!application) {
+      return res.status(404).json({ ok: false, message: "Application not found" });
+    }
+    if (admin.role === "company_admin" && !admin.companyId.equals(application.companyId._id)) {
+      return res.status(403).json({ ok: false, message: "You can only view applications for your company" });
+    }
+    res.status(200).json({ ok: true, data: application });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/admin/applications/:id – update application document (e.g. data); use .../status for status.
+ * Company admin: their company only. Body: any FormData fields except status (use .../status for that).
+ */
+export async function updateApplication(req, res, next) {
+  try {
+    const { id } = req.params;
+    const admin = req.admin;
+    const application = await FormData.findById(id).populate("companyId", "name").populate("roleId", "title");
+    if (!application) {
+      return res.status(404).json({ ok: false, message: "Application not found" });
+    }
+    if (admin.role === "company_admin" && !admin.companyId.equals(application.companyId._id)) {
+      return res.status(403).json({ ok: false, message: "You can only update applications for your company" });
+    }
+    const { status, reviewedAt, reviewedBy, ...allowedBody } = req.body;
+    const updated = await FormData.findByIdAndUpdate(id, allowedBody, { new: true, runValidators: true })
+      .populate("companyId", "name")
+      .populate("roleId", "title");
+    res.status(200).json({ ok: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/admin/applications/:id – delete application. Company admin: their company only.
+ */
+export async function deleteApplication(req, res, next) {
+  try {
+    const { id } = req.params;
+    const admin = req.admin;
+    const application = await FormData.findById(id);
+    if (!application) {
+      return res.status(404).json({ ok: false, message: "Application not found" });
+    }
+    if (admin.role === "company_admin" && !admin.companyId.equals(application.companyId)) {
+      return res.status(403).json({ ok: false, message: "You can only delete applications for your company" });
+    }
+    await FormData.findByIdAndDelete(id);
+    res.status(200).json({ ok: true, data: { _id: id, deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * PATCH /api/admin/applications/:id/status
- * Company admin: approve or reject an application for their company; send email to applicant.
- * Body: { status: "approved" | "rejected", message?: string }
- * Applicant has no password – they are notified by email from this dashboard.
+ * Company admin: set application status; optionally send email on approved/hired or rejected.
+ * Body: { status: "pending" | "reviewed" | "interviewing" | "hired" | "approved" | "rejected", message?: string }
+ * Applicant has no password – they are notified by email from this dashboard when approved/hired or rejected.
  */
 export async function setApplicationStatus(req, res, next) {
   try {
     const { id } = req.params;
     const { status, message } = req.body;
-    if (!status || !["approved", "rejected"].includes(status)) {
+    const allowed = ["pending", "reviewed", "interviewing", "hired", "approved", "rejected"];
+    if (!status || !allowed.includes(status)) {
       return res.status(400).json({
         ok: false,
-        message: "status must be 'approved' or 'rejected'",
+        message: `status must be one of: ${allowed.join(", ")}`,
       });
     }
     const application = await FormData.findById(id)
@@ -297,13 +480,16 @@ export async function setApplicationStatus(req, res, next) {
     const companyName = application.companyId?.name || "Company";
     const roleTitle = application.roleId?.title || "the role";
 
-    if (applicantEmail) {
+    const isApproved = status === "approved" || status === "hired";
+    const isRejected = status === "rejected";
+    const shouldSendEmail = applicantEmail && (isApproved || isRejected);
+    if (shouldSendEmail) {
       const result = await sendApplicationStatusEmail(
         applicantEmail,
         applicantName,
         companyName,
         roleTitle,
-        status === "approved",
+        isApproved,
         message || undefined
       );
       return res.status(200).json({

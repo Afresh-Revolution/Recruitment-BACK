@@ -109,3 +109,47 @@ export async function upsert(req, res, next) {
     next(error);
   }
 }
+
+/**
+ * GET /api/formrequirement/:id – get one FormRequirement by _id.
+ */
+export async function getById(req, res, next) {
+  try {
+    const doc = await FormRequirement.findById(req.params.id)
+      .populate("roleId", "title type")
+      .populate("companyId", "name");
+    if (!doc) return res.status(404).json({ ok: false, message: "Form requirement not found" });
+    res.status(200).json({ ok: true, data: doc });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/formrequirement/:id – update by _id.
+ */
+export async function update(req, res, next) {
+  try {
+    const doc = await FormRequirement.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!doc) return res.status(404).json({ ok: false, message: "Form requirement not found" });
+    res.status(200).json({ ok: true, data: doc });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/formrequirement/:id – remove by _id.
+ */
+export async function remove(req, res, next) {
+  try {
+    const doc = await FormRequirement.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ ok: false, message: "Form requirement not found" });
+    res.status(200).json({ ok: true, data: { _id: doc._id, deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}

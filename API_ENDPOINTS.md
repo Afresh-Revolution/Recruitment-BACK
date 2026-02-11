@@ -119,8 +119,11 @@ Response: `200` — `{ "ok": true, "data": { "_id": "...", "deleted": true } }`
 |--------|------|------|-------------|
 | GET | `/api/hero` | No | First active hero (no companyId) |
 | GET | `/api/hero?companyId=xxx` | No | Hero by companyId (query) |
+| GET | `/api/hero/by-id/:id` | No | Get one hero document by _id |
 | GET | `/api/hero/:companyId` | No | Hero by companyId (param) |
 | POST | `/api/hero` | No | Create/update hero (upsert by companyId) |
+| PATCH | `/api/hero/:id` | No | Update hero by _id (partial) |
+| DELETE | `/api/hero/:id` | No | Remove hero by _id |
 
 **GET /api/hero** or **GET /api/hero?companyId=xxx**  
 Response:
@@ -223,7 +226,10 @@ Response: `200` — `{ "success": true, "message": "Hero section saved successfu
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/powered` | No | Powered section (optional companyId) |
+| GET | `/api/powered/by-id/:id` | No | Get one Powered document by _id |
 | POST | `/api/powered` | No | Create/update powered (upsert) |
+| PATCH | `/api/powered/:id` | No | Update Powered by _id |
+| DELETE | `/api/powered/:id` | No | Remove Powered by _id |
 
 **GET /api/powered** or **GET /api/powered?companyId=xxx**  
 Response:
@@ -273,7 +279,10 @@ Response: `200` — `{ "ok": true, "data": { ...powered } }`
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/opportunities` | No | Opportunities section (optional companyId) |
+| GET | `/api/opportunities/by-id/:id` | No | Get one Opportunities document by _id |
 | POST | `/api/opportunities` | No | Create/update opportunities (upsert) |
+| PATCH | `/api/opportunities/:id` | No | Update Opportunities by _id |
+| DELETE | `/api/opportunities/:id` | No | Remove Opportunities by _id |
 
 **GET /api/opportunities** or **GET /api/opportunities?companyId=xxx**  
 Response:
@@ -320,7 +329,10 @@ Response: `200` — `{ "ok": true, "data": { ...opportunities } }`
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/whychooseus` | No | Why choose us section |
+| GET | `/api/whychooseus/by-id/:id` | No | Get one WhyChooseUs document by _id |
 | POST | `/api/whychooseus` | No | Create/update (upsert) |
+| PATCH | `/api/whychooseus/:id` | No | Update WhyChooseUs by _id |
+| DELETE | `/api/whychooseus/:id` | No | Remove WhyChooseUs by _id |
 
 **GET /api/whychooseus**  
 Response: `{ "ok": true, "data": { ...whyChooseUs } }`  
@@ -415,7 +427,10 @@ Response: `200` — `{ "ok": true, "data": { ...section } }`
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/gallery` | No | Gallery section (optional companyId) |
+| GET | `/api/gallery/by-id/:id` | No | Get one Gallery document by _id |
 | POST | `/api/gallery` | No | Create/update gallery (upsert) |
+| PATCH | `/api/gallery/:id` | No | Update Gallery by _id |
+| DELETE | `/api/gallery/:id` | No | Remove Gallery by _id |
 
 **GET /api/gallery** or **GET /api/gallery?companyId=xxx**  
 Response:
@@ -594,7 +609,10 @@ Response: `200` — `{ "ok": true, "data": { ...section } }`
 |--------|------|------|-------------|
 | GET | `/api/formrequirement?roleId=xxx` | No | Form content for one role (or fallback from Role) |
 | GET | `/api/formrequirement?companyId=xxx` | No | List form requirements for company |
+| GET | `/api/formrequirement/:id` | No | Get one FormRequirement by _id |
 | POST | `/api/formrequirement` | No | Create/update form requirement (upsert by companyId + roleId) |
+| PATCH | `/api/formrequirement/:id` | No | Update FormRequirement by _id |
+| DELETE | `/api/formrequirement/:id` | No | Remove FormRequirement by _id |
 
 **GET /api/formrequirement?roleId=xxx**  
 Response:
@@ -642,6 +660,7 @@ Response: `200` — `{ "ok": true, "data": { ...formRequirement } }`
 |--------|------|------|-------------|
 | GET | `/api/formdata` | No | List submissions (optional companyId) |
 | POST | `/api/formdata` | No | Submit application |
+| PATCH | `/api/formdata/:id` | No | Update application by _id (partial, e.g. data) |
 | DELETE | `/api/formdata/:id` | No | Remove application submission |
 
 **GET /api/formdata** or **GET /api/formdata?companyId=xxx**  
@@ -710,8 +729,28 @@ Response: `200` — `{ "ok": true, "data": { "_id": "...", "deleted": true } }`
 | GET | `/api/admin/company-admins` | JWT | super_admin | List company admins |
 | POST | `/api/admin/company-admins` | JWT | super_admin | Create company admin |
 | DELETE | `/api/admin/company-admins/:id` | JWT | super_admin | Delete company admin |
+| GET | `/api/admin/applications/summary` | JWT | company_admin or super_admin | **Admin Dashboard:** KPI counts (total, pending, interviewing, hired) |
+| GET | `/api/admin/applications/export-csv` | JWT | company_admin or super_admin | **Admin Dashboard:** Download applications as CSV |
 | GET | `/api/admin/applications` | JWT | company_admin or super_admin | List applications (company-scoped for company_admin) |
-| PATCH | `/api/admin/applications/:id/status` | JWT | company_admin or super_admin | Approve/reject application and send email to applicant |
+| GET | `/api/admin/applications/:id` | JWT | company_admin or super_admin | Get one application (Application Details) |
+| PATCH | `/api/admin/applications/:id/status` | JWT | company_admin or super_admin | Set status (pending, interviewing, hired, approved, rejected); email on approved/hired or rejected |
+| PATCH | `/api/admin/applications/:id` | JWT | company_admin or super_admin | Update application body (e.g. data); use .../status for status |
+| DELETE | `/api/admin/applications/:id` | JWT | company_admin or super_admin | Delete application (company-scoped) |
+
+**Admin Dashboard (C.A.G.E)**  
+Use these with `Authorization: Bearer <admin JWT>` so the dashboard can bring everything from the backend:
+
+- **GET /api/admin/applications/summary** — For the four KPI cards (Total Applications, Pending Review, Interviewing, Hired).  
+  Query: `?companyId=xxx` (optional, super_admin only).  
+  Response: `200` — `{ "ok": true, "data": { "total": 5, "pending": 1, "interviewing": 1, "hired": 1 } }`
+
+- **GET /api/admin/applications/export-csv** — For the "Export CSV" button. Returns a CSV file.  
+  Query: `?companyId=xxx` (optional, super_admin only).  
+  Response: `200` — CSV attachment (filename like `admin-dashboard-applications-2025-02-05.csv`).
+
+- **GET /api/admin/applications** — For the **Status** section (applications table, search, filter).  
+  Query: `?companyId=xxx` (super_admin), `?status=pending|reviewed|interviewing|hired|approved|rejected`, `?search=...` (applicant, role, company).  
+  Response: `200` — `{ "ok": true, "data": [ ...applications with companyId, roleId populated ] }`
 
 **POST /api/admin/seed-super-admin** (one-time)  
 Headers: `X-Super-Admin-Secret: <SUPER_ADMIN_SECRET>`  
@@ -736,18 +775,18 @@ Request:
 ```
 Response: `201` — `{ "ok": true, "data": { ...admin } }`
 
-**GET /api/admin/applications**  
+**GET /api/admin/applications** (Status section: table, search, filter)  
 Headers: `Authorization: Bearer <jwt>`  
-Query: `?companyId=xxx` (optional, for super_admin)  
+Query: `?companyId=xxx` (optional, super_admin), `?status=pending|reviewed|interviewing|hired|approved|rejected`, `?search=...` (search by applicant name/email, role title, company name)  
 Response: `200` — `{ "ok": true, "data": [ ...applications with companyId, roleId populated ] }`
 
 **PATCH /api/admin/applications/:id/status**  
 Headers: `Authorization: Bearer <jwt>`  
 Request:
 ```json
-{ "status": "approved", "message": "Optional custom message to applicant" }
+{ "status": "pending" | "reviewed" | "interviewing" | "hired" | "approved" | "rejected", "message": "Optional custom message to applicant" }
 ```
-or `{ "status": "rejected" }`. Backend sends email to applicant’s `data.email`.  
+Backend sends email to applicant’s `data.email` when status is `approved`/`hired` (approval email) or `rejected` (rejection email).  
 Response: `200` — `{ "ok": true, "data": { "application": { _id, status, reviewedAt }, "emailSent": true, "emailError": null } }`
 
 ---
@@ -774,21 +813,31 @@ Response: `200` — `{ "ok": true, "data": { "application": { _id, status, revie
 | POST | `/api/company` | Create company |
 | PATCH | `/api/company/:id` | Update part of company |
 | DELETE | `/api/company/:id` | Remove company |
-| GET | `/api/hero`, `/api/hero?companyId=`, `/api/hero/:companyId` | Get hero |
+| GET | `/api/hero`, `/api/hero?companyId=`, `/api/hero/by-id/:id`, `/api/hero/:companyId` | Get hero |
 | POST | `/api/hero` | Upsert hero |
-| GET | `/api/powered`, `/api/powered?companyId=` | Get powered |
+| PATCH | `/api/hero/:id` | Update hero by _id |
+| DELETE | `/api/hero/:id` | Remove hero by _id |
+| GET | `/api/powered`, `/api/powered?companyId=`, `/api/powered/by-id/:id` | Get powered |
 | POST | `/api/powered` | Upsert powered |
-| GET | `/api/opportunities`, `/api/opportunities?companyId=` | Get opportunities |
+| PATCH | `/api/powered/:id` | Update powered by _id |
+| DELETE | `/api/powered/:id` | Remove powered by _id |
+| GET | `/api/opportunities`, `/api/opportunities?companyId=`, `/api/opportunities/by-id/:id` | Get opportunities |
 | POST | `/api/opportunities` | Upsert opportunities |
-| GET | `/api/whychooseus` | Get why choose us |
+| PATCH | `/api/opportunities/:id` | Update opportunities by _id |
+| DELETE | `/api/opportunities/:id` | Remove opportunities by _id |
+| GET | `/api/whychooseus`, `/api/whychooseus/by-id/:id` | Get why choose us |
 | POST | `/api/whychooseus` | Upsert why choose us |
+| PATCH | `/api/whychooseus/:id` | Update why choose us by _id |
+| DELETE | `/api/whychooseus/:id` | Remove why choose us by _id |
 | GET | `/api/trainee`, `/api/trainee?companyId=` | Get trainee section + list |
 | POST | `/api/trainee` | Create trainee |
 | PATCH | `/api/trainee/:id` | Update part of trainee |
 | DELETE | `/api/trainee/:id` | Remove trainee |
 | POST | `/api/trainee/section` | Upsert trainee section |
-| GET | `/api/gallery`, `/api/gallery?companyId=` | Get gallery |
+| GET | `/api/gallery`, `/api/gallery?companyId=`, `/api/gallery/by-id/:id` | Get gallery |
 | POST | `/api/gallery` | Upsert gallery |
+| PATCH | `/api/gallery/:id` | Update gallery by _id |
+| DELETE | `/api/gallery/:id` | Remove gallery by _id |
 | GET | `/api/destination`, `/api/destination?companyId=` | Get destination |
 | POST | `/api/destination` | Create destination |
 | PATCH | `/api/destination/:id` | Update part of destination |
@@ -798,15 +847,23 @@ Response: `200` — `{ "ok": true, "data": { "application": { _id, status, revie
 | PATCH | `/api/role/:id` | Update part of role |
 | DELETE | `/api/role/:id` | Remove role |
 | POST | `/api/role/section` | Upsert role section |
-| GET | `/api/formrequirement?roleId=`, `?companyId=` | Get form requirement(s) |
+| GET | `/api/formrequirement?roleId=`, `?companyId=`, `/api/formrequirement/:id` | Get form requirement(s) |
 | POST | `/api/formrequirement` | Upsert form requirement |
+| PATCH | `/api/formrequirement/:id` | Update form requirement by _id |
+| DELETE | `/api/formrequirement/:id` | Remove form requirement by _id |
 | GET | `/api/formdata`, `/api/formdata?companyId=` | List applications |
 | POST | `/api/formdata` | Submit application |
+| PATCH | `/api/formdata/:id` | Update application by _id |
 | DELETE | `/api/formdata/:id` | Remove application submission |
 | POST | `/api/admin/seed-super-admin` | One-time: create first super admin (secret header) |
 | POST | `/api/admin/login` | Admin login |
 | GET | `/api/admin/company-admins` | List company admins (super_admin) |
 | POST | `/api/admin/company-admins` | Create company admin (super_admin) |
 | DELETE | `/api/admin/company-admins/:id` | Delete company admin (super_admin) |
+| GET | `/api/admin/applications/summary` | Admin Dashboard KPI counts (total, pending, interviewing, hired) |
+| GET | `/api/admin/applications/export-csv` | Admin Dashboard: export applications as CSV |
 | GET | `/api/admin/applications` | List applications (admin) |
-| PATCH | `/api/admin/applications/:id/status` | Approve/reject and send email (admin) |
+| GET | `/api/admin/applications/:id` | Get one application (Application Details) |
+| PATCH | `/api/admin/applications/:id/status` | Set application status; email on approved/hired or rejected (admin) |
+| PATCH | `/api/admin/applications/:id` | Update application body (admin) |
+| DELETE | `/api/admin/applications/:id` | Delete application (admin) |

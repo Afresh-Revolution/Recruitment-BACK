@@ -69,3 +69,45 @@ export async function upsert(req, res, next) {
     next(error);
   }
 }
+
+/**
+ * GET /api/gallery/by-id/:id – get one Gallery document by _id.
+ */
+export async function getById(req, res, next) {
+  try {
+    const doc = await Gallery.findById(req.params.id);
+    if (!doc) return res.status(404).json({ ok: false, message: "Gallery section not found" });
+    res.status(200).json({ ok: true, data: doc });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/gallery/:id – update by _id.
+ */
+export async function update(req, res, next) {
+  try {
+    const doc = await Gallery.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!doc) return res.status(404).json({ ok: false, message: "Gallery section not found" });
+    res.status(200).json({ ok: true, data: doc });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/gallery/:id – remove by _id.
+ */
+export async function remove(req, res, next) {
+  try {
+    const doc = await Gallery.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ ok: false, message: "Gallery section not found" });
+    res.status(200).json({ ok: true, data: { _id: doc._id, deleted: true } });
+  } catch (error) {
+    next(error);
+  }
+}

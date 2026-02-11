@@ -4,4 +4,7 @@ import * as opportunitiesController from "../controllers/opportunities.controlle
 export const opportunitiesRouter = express.Router();
 
 opportunitiesRouter.get("/", opportunitiesController.getByCompany);
+opportunitiesRouter.get("/by-id/:id", opportunitiesController.getById);
 opportunitiesRouter.post("/", opportunitiesController.upsert);
+opportunitiesRouter.patch("/:id", opportunitiesController.update);
+opportunitiesRouter.delete("/:id", opportunitiesController.remove);
