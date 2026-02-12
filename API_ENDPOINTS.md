@@ -659,7 +659,8 @@ Response: `200` — `{ "ok": true, "data": { ...formRequirement } }`
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/formdata` | No | List submissions (optional companyId) |
-| POST | `/api/formdata` | No | Submit application |
+| POST | `/api/formdata/apply` | No | **Submit application with CV** (multipart: file + fields, stores both) |
+| POST | `/api/formdata` | No | Submit application (JSON only; use `/apply` to send CV in same request) |
 | PATCH | `/api/formdata/:id` | No | Update application by _id (partial, e.g. data) |
 | DELETE | `/api/formdata/:id` | No | Remove application submission |
 
@@ -692,7 +693,16 @@ Response:
 }
 ```
 
-**POST /api/formdata**  
+**POST /api/formdata/apply** (recommended: one request stores CV and application)  
+Send **multipart/form-data** with:
+- **resume** (file): PDF or Word, max 10 MB (optional).
+- **companyId**, **roleId** (required); **applicantId** (optional).
+- Any other form fields (e.g. fullName, email, phone, address, educationStatus, role, motivation, workRemotely, workingDaysTime) as plain form fields.
+
+The backend stores the CV under `uploads/` and creates the application in MongoDB with `data.resumeUrl` and `data.attachmentUrl` set to the stored file path.  
+Response: `201` — `{ "ok": true, "data": { ...formData } }`
+
+**POST /api/formdata** (JSON only; no file in this request)  
 Request:
 ```json
 {
