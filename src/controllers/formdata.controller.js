@@ -1,4 +1,7 @@
 import { FormData } from "../models/FormData.js";
+import { Company } from "../models/Company.js";
+import { Role } from "../models/Role.js";
+import { sendApplicationReceivedEmail } from "../utils/email.js";
 
 const TOP_LEVEL_KEYS = ["companyId", "roleId", "applicantId"];
 
@@ -39,6 +42,26 @@ export async function createWithResume(req, res, next) {
       applicantId,
       data,
     });
+
+    // Automatically send "application received" email to applicant (non-blocking; don't fail request)
+    const applicantEmail = data.email;
+    if (applicantEmail) {
+      Promise.all([
+        Company.findById(companyId).select("name").lean(),
+        Role.findById(roleId).select("title").lean(),
+      ])
+        .then(([company, role]) => {
+          const companyName = company?.name || "Company";
+          const roleTitle = role?.title || "the role";
+          const applicantName = data.fullName || data.name || "Applicant";
+          return sendApplicationReceivedEmail(applicantEmail, applicantName, companyName, roleTitle);
+        })
+        .then((result) => {
+          if (!result.sent) console.error("Application-received email failed:", result.error);
+        })
+        .catch((err) => console.error("Application-received email error:", err.message));
+    }
+
     res.status(201).json({ ok: true, data: doc });
   } catch (error) {
     next(error);

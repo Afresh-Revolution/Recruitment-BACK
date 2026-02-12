@@ -53,3 +53,28 @@ export async function sendApplicationStatusEmail(
     return { sent: false, error: err.message };
   }
 }
+
+/**
+ * Send "application received" email to applicant automatically when they submit.
+ * @param {string} toEmail - Applicant email
+ * @param {string} applicantName - Full name
+ * @param {string} companyName - Company name
+ * @param {string} roleTitle - Job/role title
+ */
+export async function sendApplicationReceivedEmail(toEmail, applicantName, companyName, roleTitle) {
+  const subject = `Application received – ${companyName}`;
+  const body = `Hello ${applicantName},\n\nWe have received your application for ${roleTitle} at ${companyName}. We will review it and get back to you.\n\nBest regards,\n${companyName}`;
+  const mailOptions = {
+    from: process.env.MAIL_FROM || "noreply@thecage.com",
+    to: toEmail,
+    subject,
+    text: body,
+  };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    return { sent: true, messageId: info.messageId };
+  } catch (err) {
+    console.error("Application-received email error:", err.message);
+    return { sent: false, error: err.message };
+  }
+}
