@@ -88,3 +88,25 @@ const json = await res.json(); // { ok: true, data: { ...application } }
 ```
 
 No separate upload then form submit; one call stores both the CV and the application.
+
+---
+
+## Admin: same data, different endpoints
+
+**Yes — the API works with the admin.** Applications and CVs submitted via `POST /api/formdata/apply` are the same records and files the admin dashboard uses.
+
+| Who | What they use |
+|-----|----------------|
+| **Applicant** | `POST /api/formdata/apply` (no auth) to submit application + CV. |
+| **Admin** | **Admin endpoints** (require `Authorization: Bearer <admin JWT>`) to view and manage those applications. |
+
+Admin does **not** call `/api/formdata/apply` (admins don’t submit job applications). Admin uses:
+
+- **GET** `/api/admin/applications` — list applications (same FormData documents), with `resumeUrl` / `data.resumeUrl` for the CV.
+- **GET** `/api/admin/applications/:id` — one application (details modal); includes resume URLs.
+- **GET** `/api/admin/uploads/:filename` — download the resume file (e.g. PDF) with admin auth.
+- **PATCH** `/api/admin/applications/:id/status` — set status (e.g. Mark as Reviewed).
+- **PATCH** `/api/admin/applications/:id` — update application.
+- **DELETE** `/api/admin/applications/:id` — delete application.
+
+Resume files stored by multer (from `/api/formdata/apply`) are in the same `uploads/` folder, so the admin download endpoint serves those same files. Full details: see **ADMIN_DASHBOARD_ENDPOINTS.md**.
