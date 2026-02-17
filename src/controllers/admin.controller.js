@@ -555,23 +555,29 @@ export async function setApplicationStatus(req, res, next) {
     application.reviewedBy = admin._id;
     await application.save();
 
-    const applicantEmail = application.data?.email;
+    const rawEmail = application.data?.email;
+    const applicantEmail = typeof rawEmail === "string" ? rawEmail.trim() : "";
+    const hasValidEmail = applicantEmail.length > 0 && applicantEmail.includes("@");
     const applicantName = application.data?.fullName || application.data?.name || "Applicant";
     const companyName = application.companyId?.name || "Company";
     const roleTitle = application.roleId?.title || "the role";
 
-    const isApproved = status === "approved" || status === "hired";
-    const isRejected = status === "rejected";
-    const shouldSendEmail = applicantEmail && (isApproved || isRejected);
+    // Send email for all valid statuses if email is available
+    const shouldSendEmail = hasValidEmail && allowed.includes(status);
+
     if (shouldSendEmail) {
+      console.log(`Sending status email for application ${application._id} to applicant (status: ${status})`);
       const result = await sendApplicationStatusEmail(
         applicantEmail,
         applicantName,
         companyName,
         roleTitle,
-        isApproved,
+        status,
         message || undefined
       );
+      if (!result.sent) {
+        console.error(`Application ${application._id} status email failed:`, result.error);
+      }
       return res.status(200).json({
         ok: true,
         data: {
@@ -586,6 +592,9 @@ export async function setApplicationStatus(req, res, next) {
       });
     }
 
+    if ((isApproved || isRejected) && !hasValidEmail) {
+      console.warn(`Application ${application._id}: no valid applicant email (data.email missing or invalid), status email not sent`);
+    }
     res.status(200).json({
       ok: true,
       data: {
@@ -595,7 +604,9 @@ export async function setApplicationStatus(req, res, next) {
           reviewedAt: application.reviewedAt,
         },
         emailSent: false,
-        emailError: "No applicant email in application data",
+        emailError: !hasValidEmail
+          ? "No valid applicant email in application data (ensure the application form includes and saves an email field)"
+          : null,
       },
     });
   } catch (error) {

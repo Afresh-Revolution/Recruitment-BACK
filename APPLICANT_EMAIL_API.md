@@ -1,6 +1,6 @@
-# Applicant email (approved / declined) – how it works & endpoints
+# Applicant email – automatic sending & endpoints
 
-Applicants get an email when an admin sets their application to **approved**, **hired**, or **rejected**. There is **no separate “send email” endpoint** — the email is sent automatically when you update the application status.
+All applicant emails are sent **automatically**. When an admin sets an application to **approved**, **hired**, or **rejected**. No separate “send email” API — approval/decline is sent when admin updates status; "application received" is sent on submit.
 
 ---
 

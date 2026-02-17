@@ -16,7 +16,9 @@ if (!to) {
   process.exit(1);
 }
 
-console.log("Sending test email to:", to);
+const status = process.argv[3] || "approved";
+
+console.log(`Sending test email to: ${to} (status: ${status})`);
 console.log("SMTP:", process.env.SMTP_HOST || "smtp.ethereal.email", "port", process.env.SMTP_PORT || 587);
 
 const result = await sendApplicationStatusEmail(
@@ -24,7 +26,7 @@ const result = await sendApplicationStatusEmail(
   "Test Applicant",
   "Test Company",
   "Test Role",
-  true,
+  status,
   "This is a test email from the recruitment backend. If you received this, SMTP is working."
 );
 
