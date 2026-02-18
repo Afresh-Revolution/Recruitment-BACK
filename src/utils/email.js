@@ -25,7 +25,7 @@ function isValidEmail(value) {
 /**
  * Helper to send email with retries
  */
-async function sendMailWithRetry(mailOptions, retries = 2, delay = 2000) {
+async function sendMailWithRetry(mailOptions, retries = 2) {
   if (!resend) {
     return { sent: false, error: "Resend client not initialized (missing API key)" };
   }
@@ -42,8 +42,11 @@ async function sendMailWithRetry(mailOptions, retries = 2, delay = 2000) {
         console.error(`Email sending failed after ${retries + 1} attempts:`, err.message);
         return { sent: false, error: err.message };
       }
-      console.warn(`Email attempt ${i + 1} failed, retrying in ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+
+      // Exponential backoff: 2s after 1st failure, 4s after 2nd failure
+      const currentDelay = i === 0 ? 2000 : 4000;
+      console.warn(`Email attempt ${i + 1} failed, retrying in ${currentDelay}ms... (Error: ${err.message})`);
+      await new Promise(resolve => setTimeout(resolve, currentDelay));
     }
   }
 }
