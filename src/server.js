@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { createApp } from "./app.js";
 import { connectDb } from "./config/db.js";
+import { verifySmtpConnection } from "./utils/email.js";
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -16,6 +17,8 @@ if (!process.env.MONGODB_URI) {
 // Connect to database first
 try {
   await connectDb(process.env.MONGODB_URI);
+  // Verify SMTP connection
+  await verifySmtpConnection();
 } catch (error) {
   console.error("\n💥 Server cannot start without database connection.");
   console.error("Please fix the MongoDB connection issue above and try again.\n");

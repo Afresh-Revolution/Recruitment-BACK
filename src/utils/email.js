@@ -10,7 +10,24 @@ const transporter = nodemailer.createTransport({
       pass: process.env.SMTP_PASS,
     }
     : undefined,
+  connectionTimeout: 30000, // 30 seconds
+  greetingTimeout: 30000,   // 30 seconds
 });
+
+/**
+ * Verify SMTP connection.
+ * @returns {Promise<boolean>}
+ */
+export async function verifySmtpConnection() {
+  try {
+    await transporter.verify();
+    console.log("✅ SMTP connection verified successfully");
+    return true;
+  } catch (error) {
+    console.error("❌ SMTP connection verification failed:", error.message);
+    return false;
+  }
+}
 
 // Startup Configuration Logging
 const host = process.env.SMTP_HOST;
@@ -31,15 +48,24 @@ function isValidEmail(value) {
 }
 
 /**
- * Send approval or rejection email to applicant (no password – they are notified by email from admin).
- * @param {string} toEmail - Applicant email (from form data)
- * @param {string} applicantName - Full name from application
- * @param {string} companyName - Company name
- * @param {string} roleTitle - Job/role title
- * @param {boolean} approved - true = approved, false = rejected
- * @param {string} [message] - Optional custom message from admin
- * @returns {{ sent: boolean, messageId?: string, error?: string }}
+ * Helper to send email with retries
  */
+async function sendMailWithRetry(mailOptions, retries = 2, delay = 2000) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const info = await transporter.sendMail(mailOptions);
+      return { sent: true, messageId: info.messageId };
+    } catch (err) {
+      if (i === retries) {
+        console.error(`Email sending failed after ${retries + 1} attempts:`, err.message);
+        return { sent: false, error: err.message };
+      }
+      console.warn(`Email attempt ${i + 1} failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
 /**
  * Send status update email to applicant.
  * @param {string} toEmail - Applicant email
@@ -110,14 +136,11 @@ export async function sendApplicationStatusEmail(
     text: body,
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Application status email sent to ${email} (status: ${status}), messageId: ${info.messageId}`);
-    return { sent: true, messageId: info.messageId };
-  } catch (err) {
-    console.error(`Application status email failed (status: ${status}):`, err.message);
-    return { sent: false, error: err.message };
+  const result = await sendMailWithRetry(mailOptions);
+  if (result.sent) {
+    console.log(`Application status email sent to ${email} (status: ${status}), messageId: ${result.messageId}`);
   }
+  return result;
 }
 
 /**
@@ -141,11 +164,6 @@ export async function sendApplicationReceivedEmail(toEmail, applicantName, compa
     subject,
     text: body,
   };
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    return { sent: true, messageId: info.messageId };
-  } catch (err) {
-    console.error("Application-received email error:", err.message);
-    return { sent: false, error: err.message };
-  }
+
+  return sendMailWithRetry(mailOptions);
 }

@@ -562,39 +562,7 @@ export async function setApplicationStatus(req, res, next) {
     const companyName = application.companyId?.name || "Company";
     const roleTitle = application.roleId?.title || "the role";
 
-    // Send email for all valid statuses if email is available
-    const shouldSendEmail = hasValidEmail && allowed.includes(status);
-
-    if (shouldSendEmail) {
-      console.log(`Sending status email for application ${application._id} to applicant (status: ${status})`);
-      const result = await sendApplicationStatusEmail(
-        applicantEmail,
-        applicantName,
-        companyName,
-        roleTitle,
-        status,
-        message || undefined
-      );
-      if (!result.sent) {
-        console.error(`Application ${application._id} status email failed:`, result.error);
-      }
-      return res.status(200).json({
-        ok: true,
-        data: {
-          application: {
-            _id: application._id,
-            status: application.status,
-            reviewedAt: application.reviewedAt,
-          },
-          emailSent: result.sent,
-          emailError: result.sent ? null : result.error,
-        },
-      });
-    }
-
-    if ((isApproved || isRejected) && !hasValidEmail) {
-      console.warn(`Application ${application._id}: no valid applicant email (data.email missing or invalid), status email not sent`);
-    }
+    // Return response immediately
     res.status(200).json({
       ok: true,
       data: {
@@ -603,12 +571,49 @@ export async function setApplicationStatus(req, res, next) {
           status: application.status,
           reviewedAt: application.reviewedAt,
         },
-        emailSent: false,
-        emailError: !hasValidEmail
-          ? "No valid applicant email in application data (ensure the application form includes and saves an email field)"
-          : null,
       },
+      message: "Application status updated. Email sending in background.",
     });
+
+    // Handle background email sending
+    const shouldSendEmail = hasValidEmail && allowed.includes(status);
+    if (shouldSendEmail) {
+      setImmediate(async () => {
+        try {
+          console.log(`[Background] Sending status email for application ${application._id} to ${applicantEmail}`);
+          const result = await sendApplicationStatusEmail(
+            applicantEmail,
+            applicantName,
+            companyName,
+            roleTitle,
+            status,
+            message || undefined
+          );
+
+          // Update application with email result
+          await FormData.findByIdAndUpdate(application._id, {
+            emailSentAt: result.sent ? new Date() : null,
+            emailError: result.sent ? null : result.error,
+          });
+
+          if (!result.sent) {
+            console.error(`[Background] Application ${application._id} email failed:`, result.error);
+          } else {
+            console.log(`[Background] Application ${application._id} email sent successfully`);
+          }
+        } catch (error) {
+          console.error(`[Background] Critical error in email job for ${application._id}:`, error.message);
+          await FormData.findByIdAndUpdate(application._id, {
+            emailError: `Background error: ${error.message}`,
+          });
+        }
+      });
+    } else if (!hasValidEmail && (status === "approved" || status === "rejected" || status === "hired")) {
+      console.warn(`[Background] No valid email for application ${application._id}, skipped email.`);
+      await FormData.findByIdAndUpdate(application._id, {
+        emailError: "No valid applicant email found",
+      });
+    }
   } catch (error) {
     next(error);
   }

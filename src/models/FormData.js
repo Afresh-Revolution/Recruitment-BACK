@@ -22,6 +22,9 @@ const formDataSchema = new mongoose.Schema(
     },
     reviewedAt: { type: Date, default: null },
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", default: null },
+    // Email tracking
+    emailSentAt: { type: Date, default: null },
+    emailError: { type: String, default: null },
   },
   { timestamps: true }
 );
