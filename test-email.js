@@ -18,8 +18,8 @@ if (!to) {
 
 const status = process.argv[3] || "approved";
 
-console.log(`Sending test email to: ${to} (status: ${status})`);
-console.log("SMTP:", process.env.SMTP_HOST || "smtp.ethereal.email", "port", process.env.SMTP_PORT || 587);
+console.log(`Sending test email via Resend to: ${to} (status: ${status})`);
+console.log("Resend API Key:", process.env.RESEND_API_KEY ? "Present" : "Missing");
 
 const result = await sendApplicationStatusEmail(
   to,

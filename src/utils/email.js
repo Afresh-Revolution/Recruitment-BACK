@@ -1,43 +1,18 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.ethereal.email",
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === "true",
-  auth: process.env.SMTP_USER
-    ? {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    }
-    : undefined,
-  connectionTimeout: 30000, // 30 seconds
-  greetingTimeout: 30000,   // 30 seconds
-});
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 /**
- * Verify SMTP connection.
- * @returns {Promise<boolean>}
+ * Verify Resend configuration.
+ * @returns {boolean}
  */
-export async function verifySmtpConnection() {
-  try {
-    await transporter.verify();
-    console.log("✅ SMTP connection verified successfully");
-    return true;
-  } catch (error) {
-    console.error("❌ SMTP connection verification failed:", error.message);
+export async function verifyResendConfig() {
+  if (!resend) {
+    console.warn("⚠️  WARNING: RESEND_API_KEY not defined in .env. Emails will NOT be sent.");
     return false;
   }
-}
-
-// Startup Configuration Logging
-const host = process.env.SMTP_HOST;
-if (!host) {
-  console.warn("⚠️  WARNING: SMTP_HOST not defined in .env. Falling back to Ethereal Email (fake). emails will NOT be delivered to real addresses.");
-} else {
-  console.log(`📧 Email Service: Using SMTP host: ${host}`);
-  if (process.env.SMTP_USER) {
-    console.log(`📧 Email Service: Authenticating as ${process.env.SMTP_USER}`);
-  }
+  console.log("✅ Resend configuration found");
+  return true;
 }
 
 /** Basic check: non-empty string with @ (used to avoid sending to invalid addresses) */
@@ -51,10 +26,17 @@ function isValidEmail(value) {
  * Helper to send email with retries
  */
 async function sendMailWithRetry(mailOptions, retries = 2, delay = 2000) {
+  if (!resend) {
+    return { sent: false, error: "Resend client not initialized (missing API key)" };
+  }
+
   for (let i = 0; i <= retries; i++) {
     try {
-      const info = await transporter.sendMail(mailOptions);
-      return { sent: true, messageId: info.messageId };
+      const { data, error } = await resend.emails.send(mailOptions);
+      if (error) {
+        throw new Error(error.message || "Unknown Resend error");
+      }
+      return { sent: true, messageId: data.id };
     } catch (err) {
       if (i === retries) {
         console.error(`Email sending failed after ${retries + 1} attempts:`, err.message);
@@ -130,7 +112,7 @@ export async function sendApplicationStatusEmail(
   const body = message || defaultBody;
 
   const mailOptions = {
-    from: process.env.MAIL_FROM || "noreply@thecage.com",
+    from: process.env.MAIL_FROM || "onboarding@resend.dev",
     to: email,
     subject,
     text: body,
@@ -138,7 +120,7 @@ export async function sendApplicationStatusEmail(
 
   const result = await sendMailWithRetry(mailOptions);
   if (result.sent) {
-    console.log(`Application status email sent to ${email} (status: ${status}), messageId: ${result.messageId}`);
+    console.log(`Application status email sent via Resend to ${email} (status: ${status}), messageId: ${result.messageId}`);
   }
   return result;
 }
@@ -159,7 +141,7 @@ export async function sendApplicationReceivedEmail(toEmail, applicantName, compa
   const subject = `Application received – ${companyName}`;
   const body = `Hello ${applicantName},\n\nWe have received your application for ${roleTitle} at ${companyName}. We will review it and get back to you.\n\nBest regards,\n${companyName}`;
   const mailOptions = {
-    from: process.env.MAIL_FROM || "noreply@thecage.com",
+    from: process.env.MAIL_FROM || "onboarding@resend.dev",
     to: email,
     subject,
     text: body,
