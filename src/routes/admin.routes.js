@@ -1,6 +1,6 @@
 import express from "express";
 import * as adminController from "../controllers/admin.controller.js";
-import { adminAuth, requireSuperAdmin, requireCompanyAdmin } from "../middleware/adminAuth.js";
+import { adminAuth, requireSuperAdmin } from "../middleware/adminAuth.js";
 
 export const adminRouter = express.Router();
 
@@ -28,3 +28,9 @@ adminRouter.get("/uploads/:filename", adminController.serveUploadedFile);
 adminRouter.patch("/applications/:id/status", adminController.setApplicationStatus);
 adminRouter.patch("/applications/:id", adminController.updateApplication);
 adminRouter.delete("/applications/:id", adminController.deleteApplication);
+
+// Company Admin (and Super Admin): job roles
+adminRouter.post("/job-roles", adminController.createJobRole);
+adminRouter.get("/job-roles", adminController.getJobRoles);
+adminRouter.delete("/job-roles/:id", adminController.deleteJobRole);
+// Company Admin (and Super Admin): company info

@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { Admin } from "../models/Admin.js";
 import { Company } from "../models/Company.js";
 import { FormData } from "../models/FormData.js";
+import { Role } from "../models/Role.js";
 import { generateToken } from "../utils/generateToken.js";
 import { sendApplicationStatusEmail } from "../utils/email.js";
 
@@ -617,6 +618,96 @@ export async function setApplicationStatus(req, res, next) {
         emailError: "No valid applicant email found",
       });
     }
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/admin/job-roles
+ * Create a job role with description.
+ * Super admin: can create for any company via body.companyId.
+ * Company admin: always creates for own company.
+ */
+export async function createJobRole(req, res, next) {
+  try {
+    const admin = req.admin;
+    const { title, description, companyId: bodyCompanyId, ...rest } = req.body;
+
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ ok: false, message: "title is required" });
+    }
+    if (!description || !String(description).trim()) {
+      return res.status(400).json({ ok: false, message: "description is required" });
+    }
+
+    let companyId = bodyCompanyId || null;
+    if (admin.role === "company_admin") {
+      companyId = admin.companyId;
+    } else if (!companyId) {
+      return res.status(400).json({ ok: false, message: "companyId is required for super admin" });
+    }
+
+    const role = await Role.create({
+      companyId,
+      title: String(title).trim(),
+      description: String(description).trim(),
+      ...rest,
+    });
+
+    const doc = await Role.findById(role._id).populate("companyId", "name slug logo");
+    res.status(201).json({ ok: true, data: doc });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/admin/job-roles
+ * Super admin: list all roles (or filter by ?companyId).
+ * Company admin: list only own company roles.
+ */
+export async function getJobRoles(req, res, next) {
+  try {
+    const admin = req.admin;
+    const { companyId } = req.query;
+    const filter = {};
+
+    if (admin.role === "company_admin" && admin.companyId) {
+      filter.companyId = admin.companyId;
+    } else if (companyId) {
+      filter.companyId = companyId;
+    }
+
+    const list = await Role.find(filter)
+      .populate("companyId", "name slug logo")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ ok: true, data: list });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/admin/job-roles/:id
+ * Super admin: delete any role.
+ * Company admin: delete only own company role.
+ */
+export async function deleteJobRole(req, res, next) {
+  try {
+    const admin = req.admin;
+    const role = await Role.findById(req.params.id);
+
+    if (!role) {
+      return res.status(404).json({ ok: false, message: "Job role not found" });
+    }
+    if (admin.role === "company_admin" && admin.companyId && !admin.companyId.equals(role.companyId)) {
+      return res.status(403).json({ ok: false, message: "You can only delete job roles for your company" });
+    }
+
+    await Role.findByIdAndDelete(role._id);
+    res.status(200).json({ ok: true, data: { _id: role._id, deleted: true } });
   } catch (error) {
     next(error);
   }
