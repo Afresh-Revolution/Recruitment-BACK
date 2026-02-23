@@ -36,15 +36,15 @@ async function sendMailWithRetry(mailOptions, retries = 2) {
       if (error) {
         throw new Error(error.message || "Unknown Resend error");
       }
-      return { sent: true, messageId: data.id };
+      return { sent: true, resendId: data.id };
     } catch (err) {
       if (i === retries) {
         console.error(`Email sending failed after ${retries + 1} attempts:`, err.message);
         return { sent: false, error: err.message };
       }
 
-      // Exponential backoff: 2s after 1st failure, 4s after 2nd failure
-      const currentDelay = i === 0 ? 2000 : 4000;
+      // Exponential backoff: 1s, 2s, 4s
+      const currentDelay = i === 0 ? 1000 : i === 1 ? 2000 : 4000;
       console.warn(`Email attempt ${i + 1} failed, retrying in ${currentDelay}ms... (Error: ${err.message})`);
       await new Promise(resolve => setTimeout(resolve, currentDelay));
     }
@@ -82,7 +82,7 @@ export async function sendApplicationStatusEmail(
     case "hired":
     case "approved":
       subject = `Application Approved – ${companyName}`;
-      defaultBody = `Hello ${applicantName},\n\nYour application for ${roleTitle} at ${companyName} has been approved! The team will be in touch with next steps.\n\nBest regards,\n${companyName}`;
+      defaultBody = `Hello ${applicantName},\n\nCongratulations! Your application for ${roleTitle} at ${companyName} has been approved! The team will be in touch with next steps.\n\nBest regards,\n${companyName}`;
       break;
 
     case "rejected":
@@ -92,7 +92,7 @@ export async function sendApplicationStatusEmail(
 
     case "interviewing":
       subject = `Interview Invitation – ${companyName}`;
-      defaultBody = `Hello ${applicantName},\n\nWe are impressed with your application for ${roleTitle} at ${companyName} and would like to invite you for an interview. Our team will contact you shortly to schedule a time.\n\nBest regards,\n${companyName}`;
+      defaultBody = `Hello ${applicantName},\n\nGreat news! We are impressed with your application for ${roleTitle} at ${companyName} and would like to invite you for an interview. Our team will contact you shortly to schedule a time.\n\nBest regards,\n${companyName}`;
       break;
 
     case "reviewed":
@@ -115,7 +115,7 @@ export async function sendApplicationStatusEmail(
   const body = message || defaultBody;
 
   const mailOptions = {
-    from: process.env.MAIL_FROM || "onboarding@resend.dev",
+    from: process.env.FROM_EMAIL || process.env.MAIL_FROM || "onboarding@resend.dev",
     to: email,
     subject,
     text: body,
@@ -123,7 +123,7 @@ export async function sendApplicationStatusEmail(
 
   const result = await sendMailWithRetry(mailOptions);
   if (result.sent) {
-    console.log(`Application status email sent via Resend to ${email} (status: ${status}), messageId: ${result.messageId}`);
+    console.log(`Application status email sent via Resend to ${email} (status: ${status}), resendId: ${result.resendId}`);
   }
   return result;
 }
@@ -144,11 +144,15 @@ export async function sendApplicationReceivedEmail(toEmail, applicantName, compa
   const subject = `Application received – ${companyName}`;
   const body = `Hello ${applicantName},\n\nWe have received your application for ${roleTitle} at ${companyName}. We will review it and get back to you.\n\nBest regards,\n${companyName}`;
   const mailOptions = {
-    from: process.env.MAIL_FROM || "onboarding@resend.dev",
+    from: process.env.FROM_EMAIL || process.env.MAIL_FROM || "onboarding@resend.dev",
     to: email,
     subject,
     text: body,
   };
 
-  return sendMailWithRetry(mailOptions);
+  const result = await sendMailWithRetry(mailOptions);
+  if (result.sent) {
+    console.log(`Application received email sent via Resend to ${email}, resendId: ${result.resendId}`);
+  }
+  return result;
 }

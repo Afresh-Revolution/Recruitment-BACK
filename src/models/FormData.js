@@ -25,6 +25,7 @@ const formDataSchema = new mongoose.Schema(
     // Email tracking
     emailSentAt: { type: Date, default: null },
     emailError: { type: String, default: null },
+    resendId: { type: String, default: null },
   },
   { timestamps: true }
 );

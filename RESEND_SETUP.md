@@ -14,7 +14,8 @@ In your Render Dashboard (**Recruitment-BACK** service):
 1. Go to **Environment**.
 2. **Add/Update** the following variables:
    - `RESEND_API_KEY`: `your_re_key_here`
-   - `MAIL_FROM`: `onboarding@resend.dev` (Keep this for testing until you verify a domain).
+   - `FROM_EMAIL`: `onboarding@resend.dev` (Keep this for testing until you verify a domain).
+   - `MAIL_FROM`: (Optional, same as `FROM_EMAIL`)
 3. **Remove** (if present):
    - `SMTP_HOST`
    - `SMTP_PORT`

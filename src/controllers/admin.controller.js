@@ -562,7 +562,7 @@ export async function setApplicationStatus(req, res, next) {
     const companyName = application.companyId?.name || "Company";
     const roleTitle = application.roleId?.title || "the role";
 
-    // Return response immediately
+    // Return response immediately (include emailSent: true to indicate the background process started)
     res.status(200).json({
       ok: true,
       data: {
@@ -572,11 +572,13 @@ export async function setApplicationStatus(req, res, next) {
           reviewedAt: application.reviewedAt,
         },
       },
+      emailSent: hasValidEmail && ["interviewing", "hired", "approved", "rejected"].includes(status),
+      emailError: null,
       message: "Application status updated. Email sending in background.",
     });
 
     // Handle background email sending
-    const shouldSendEmail = hasValidEmail && allowed.includes(status);
+    const shouldSendEmail = hasValidEmail && ["interviewing", "hired", "approved", "rejected"].includes(status);
     if (shouldSendEmail) {
       setImmediate(async () => {
         try {
@@ -590,16 +592,17 @@ export async function setApplicationStatus(req, res, next) {
             message || undefined
           );
 
-          // Update application with email result
+          // Update application with email result including resendId
           await FormData.findByIdAndUpdate(application._id, {
             emailSentAt: result.sent ? new Date() : null,
             emailError: result.sent ? null : result.error,
+            resendId: result.sent ? result.messageId : null,
           });
 
           if (!result.sent) {
             console.error(`[Background] Application ${application._id} email failed:`, result.error);
           } else {
-            console.log(`[Background] Application ${application._id} email sent successfully`);
+            console.log(`[Background] Application ${application._id} email sent successfully (ID: ${result.messageId})`);
           }
         } catch (error) {
           console.error(`[Background] Critical error in email job for ${application._id}:`, error.message);
@@ -608,7 +611,7 @@ export async function setApplicationStatus(req, res, next) {
           });
         }
       });
-    } else if (!hasValidEmail && (status === "approved" || status === "rejected" || status === "hired")) {
+    } else if (!hasValidEmail && ["interviewing", "hired", "approved", "rejected"].includes(status)) {
       console.warn(`[Background] No valid email for application ${application._id}, skipped email.`);
       await FormData.findByIdAndUpdate(application._id, {
         emailError: "No valid applicant email found",
