@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+
 export async function connectDb(uri) {
   try {
     if (!uri) {
