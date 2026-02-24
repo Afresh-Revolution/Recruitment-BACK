@@ -33,4 +33,6 @@ adminRouter.delete("/applications/:id", adminController.deleteApplication);
 adminRouter.post("/job-roles", adminController.createJobRole);
 adminRouter.get("/job-roles", adminController.getJobRoles);
 adminRouter.delete("/job-roles/:id", adminController.deleteJobRole);
+adminRouter.patch("/job-roles/:id", adminController.patchJobRole);
+
 // Company Admin (and Super Admin): company info
