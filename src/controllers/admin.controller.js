@@ -712,3 +712,53 @@ export async function deleteJobRole(req, res, next) {
     next(error);
   }
 }
+
+
+
+/**
+ * PATCH /api/admin/job-roles/:id
+ * Update a job role
+ * Super admin: can update any role
+ * Company admin: only their company role
+ */
+export async function patchJobRole(req, res, next) {
+  try {
+    const admin = req.admin;
+    const { id } = req.params;
+
+    const role = await Role.findById(id);
+
+    if (!role) {
+      return res.status(404).json({
+        ok: false,
+        message: "Job role not found",
+      });
+    }
+
+    // Company admin can only edit their company roles
+    if (
+      admin.role === "company_admin" &&
+      admin.companyId &&
+      !admin.companyId.equals(role.companyId)
+    ) {
+      return res.status(403).json({
+        ok: false,
+        message: "You can only update job roles for your company",
+      });
+    }
+
+    const updatedRole = await Role.findByIdAndUpdate(
+      id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate("companyId", "name slug logo");
+
+    res.status(200).json({
+      ok: true,
+      data: updatedRole,
+    });
+
+  } catch (error) {
+    next(error);
+  }
+}
