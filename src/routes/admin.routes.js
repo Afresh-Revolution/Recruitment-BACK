@@ -36,3 +36,4 @@ adminRouter.delete("/job-roles/:id", adminController.deleteJobRole);
 adminRouter.patch("/job-roles/:id", adminController.patchJobRole);
 
 // Company Admin (and Super Admin): company info
+adminRouter.patch("/companies/:id", adminController.updateCompany);

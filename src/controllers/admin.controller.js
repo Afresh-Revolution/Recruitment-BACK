@@ -762,3 +762,47 @@ export async function patchJobRole(req, res, next) {
     next(error);
   }
 }
+
+/**
+ * PATCH /api/admin/companies/:id
+ * Update company information.
+ * Super admin: can update any company.
+ * Company admin: only their own company.
+ */
+export async function updateCompany(req, res, next) {
+  try {
+    const admin = req.admin;
+    const { id } = req.params;
+
+    const company = await Company.findById(id);
+
+    if (!company) {
+      return res.status(404).json({ ok: false, message: "Company not found" });
+    }
+
+    // Company admin can only edit their own company
+    if (
+      admin.role === "company_admin" &&
+      admin.companyId &&
+      !admin.companyId.equals(company._id)
+    ) {
+      return res.status(403).json({
+        ok: false,
+        message: "You can only update your own company",
+      });
+    }
+
+    const updated = await Company.findByIdAndUpdate(
+      id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      ok: true,
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
