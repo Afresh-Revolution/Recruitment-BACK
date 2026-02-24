@@ -37,12 +37,15 @@ export async function getByCompany(req, res, next) {
       department: r.department,
       type: r.type,
       location: r.location,
+      description: r.description,
+      requirements: r.requirements,
+      qualifications: r.qualifications,
       deadline: r.deadline,
       applyByLabel: r.deadline
         ? `Apply by ${new Date(r.deadline).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })}`
+          month: "short",
+          day: "numeric",
+        })}`
         : null,
       applyLink: `/apply/${r._id}`,
     }));
