@@ -8,15 +8,20 @@ export const formdataRouter = express.Router();
 formdataRouter.get("/", formdataController.getByCompany);
 /** Single request: multipart form with optional "resume" file + application fields. Stores CV and application. */
 formdataRouter.post("/apply", resumeUpload.single("resume"), formdataController.createWithResume);
-formdataRouter.post("/", formdataController.create);
+// formdataRouter.post("/", formdataController.create); // Removed to prevent applicant bypass via JSON-only endpoint
+
 formdataRouter.patch("/:id", formdataController.update);
 formdataRouter.delete("/:id", formdataController.remove);
 
 formdataRouter.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ ok: false, message: "File too large. Max 10 MB." });
+      return res.status(406).json({ ok: false, message: "File too large. Max 10 MB." });
     }
+    return res.status(406).json({ ok: false, message: err.message });
+  }
+  if (err.message && (err.message.includes("Only PDF or Word") || err.message.includes("Only image files"))) {
+    return res.status(406).json({ ok: false, message: err.message });
   }
   if (err.message) {
     return res.status(400).json({ ok: false, message: err.message });

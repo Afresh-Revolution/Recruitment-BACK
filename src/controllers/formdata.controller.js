@@ -24,17 +24,31 @@ export async function createWithResume(req, res, next) {
       });
     }
 
+    if (!req.file) {
+      return res.status(400).json({
+        ok: false,
+        message: "Resume file is mandatory for applicant submission.",
+      });
+    }
+
+    const requiredFields = ["fullName", "email", "phone"];
+    const missingFields = requiredFields.filter((field) => !body[field] || body[field] === "");
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        message: `Missing required fields: ${missingFields.join(", ")}`,
+      });
+    }
+
     const data = {};
     for (const [key, value] of Object.entries(body)) {
       if (TOP_LEVEL_KEYS.includes(key)) continue;
       if (value !== undefined && value !== "") data[key] = value;
     }
 
-    if (req.file) {
-      const resumeUrl = `/uploads/${req.file.filename}`;
-      data.resumeUrl = resumeUrl;
-      data.attachmentUrl = resumeUrl;
-    }
+    const resumeUrl = `/uploads/${req.file.filename}`;
+    data.resumeUrl = resumeUrl;
+    data.attachmentUrl = resumeUrl;
 
     const doc = await FormData.create({
       companyId,
