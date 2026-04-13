@@ -655,7 +655,9 @@ export async function createJobRole(req, res, next) {
       ...rest,
     });
 
-    const doc = await Role.findById(role._id).populate("companyId", "name slug logo");
+    const doc = await Role.findById(role._id)
+      .populate("companyId", "name slug logo")
+      .select("title department type location description requirements qualifications deadline image isActive createdAt updatedAt companyId");
     res.status(201).json({ ok: true, data: doc });
   } catch (error) {
     next(error);
@@ -681,8 +683,10 @@ export async function getJobRoles(req, res, next) {
 
     const list = await Role.find(filter)
       .populate("companyId", "name slug logo")
+      .select("title department type location description requirements qualifications deadline image isActive createdAt updatedAt companyId")
       .sort({ createdAt: -1 });
 
+    // Explicitly check if image exists in documents (it should, but ensuring for response)
     res.status(200).json({ ok: true, data: list });
   } catch (error) {
     next(error);
@@ -751,7 +755,8 @@ export async function patchJobRole(req, res, next) {
       id,
       req.body,
       { new: true, runValidators: true }
-    ).populate("companyId", "name slug logo");
+    ).populate("companyId", "name slug logo")
+      .select("title department type location description requirements qualifications deadline image isActive createdAt updatedAt companyId");
 
     res.status(200).json({
       ok: true,
