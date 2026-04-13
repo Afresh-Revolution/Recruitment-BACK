@@ -2,10 +2,12 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+import cloudinary from "../config/cloudinary.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Single uploads directory: CVs and images stored here */
+/** Single uploads directory: CVs stored here */
 export const UPLOAD_DIR = path.join(__dirname, "../../uploads");
 
 const storage = multer.diskStorage({
@@ -34,9 +36,18 @@ export const resumeUpload = multer({
   },
 });
 
+/** Cloudinary storage for images */
+const cloudinaryStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "the-cage",
+    allowed_formats: ["jpg", "png", "jpeg", "gif", "webp"],
+  },
+});
+
 /** Multer for images (Hero, Gallery, etc.). Use field name "image". */
 export const imageUpload = multer({
-  storage,
+  storage: cloudinaryStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter(_req, file, cb) {
     const allowed = /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype);
@@ -44,3 +55,4 @@ export const imageUpload = multer({
     else cb(new Error("Only image files (jpeg, png, gif, webp) are allowed."));
   },
 });
+

@@ -16,7 +16,7 @@ uploadRouter.post("/", imageUpload.single("image"), (req, res, next) => {
       message: "No image file sent. Use form field name 'image' and multipart/form-data.",
     });
   }
-  res.status(201).json({ ok: true, url: `/uploads/${req.file.filename}` });
+  res.status(201).json({ ok: true, url: req.file.path });
 });
 
 /**

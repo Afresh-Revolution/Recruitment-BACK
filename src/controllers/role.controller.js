@@ -27,6 +27,7 @@ export async function getByCompany(req, res, next) {
         deadline: r.deadline,
         companyName: r.companyId?.name ?? null,
         companyLogo: r.companyId?.logo ?? null,
+        image: r.image ?? null,
         applyByLabel: r.deadline
           ? `Apply by ${new Date(r.deadline).toLocaleDateString("en-US", {
             month: "short",
@@ -65,6 +66,7 @@ export async function getByCompany(req, res, next) {
       deadline: r.deadline,
       companyName: company?.name ?? null,
       companyLogo: company?.logo ?? null,
+      image: r.image ?? null,
       applyByLabel: r.deadline
         ? `Apply by ${new Date(r.deadline).toLocaleDateString("en-US", {
           month: "short",
@@ -91,7 +93,10 @@ export async function getByCompany(req, res, next) {
 
 export async function create(req, res, next) {
   try {
-    const doc = await Role.create(req.body);
+    const { title, department, type, location, description, requirements, qualifications, deadline, companyId, image } = req.body;
+    const doc = await Role.create({
+      title, department, type, location, description, requirements, qualifications, deadline, companyId, image
+    });
     res.status(201).json({ ok: true, data: doc });
   } catch (error) {
     next(error);
@@ -100,7 +105,10 @@ export async function create(req, res, next) {
 
 export async function update(req, res, next) {
   try {
-    const doc = await Role.findByIdAndUpdate(req.params.id, req.body, {
+    const { title, department, type, location, description, requirements, qualifications, deadline, companyId, image, isActive } = req.body;
+    const doc = await Role.findByIdAndUpdate(req.params.id, {
+      title, department, type, location, description, requirements, qualifications, deadline, companyId, image, isActive
+    }, {
       new: true,
       runValidators: true,
     });

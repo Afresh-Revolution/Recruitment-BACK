@@ -19,6 +19,7 @@ const roleSchema = new mongoose.Schema(
     requirements: { type: [String], default: [] },
     qualifications: { type: [String], default: [] },
     deadline: { type: Date, default: null },
+    image: { type: String, default: null },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
