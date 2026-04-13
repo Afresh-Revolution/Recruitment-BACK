@@ -14,7 +14,29 @@ export async function getByCompany(req, res, next) {
       const list = await Role.find({ isActive: true })
         .populate("companyId", "name logo")
         .sort({ createdAt: -1 });
-      return res.status(200).json({ ok: true, data: { roles: list } });
+
+      const rolesData = list.map((r) => ({
+        _id: r._id,
+        title: r.title,
+        department: r.department,
+        type: r.type,
+        location: r.location,
+        description: r.description,
+        requirements: r.requirements,
+        qualifications: r.qualifications,
+        deadline: r.deadline,
+        companyName: r.companyId?.name ?? null,
+        companyLogo: r.companyId?.logo ?? null,
+        applyByLabel: r.deadline
+          ? `Apply by ${new Date(r.deadline).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })}`
+          : null,
+        applyLink: `/apply/${r._id}`,
+      }));
+
+      return res.status(200).json({ ok: true, data: { roles: rolesData } });
     }
 
     const [company, section, roles] = await Promise.all([
@@ -41,6 +63,8 @@ export async function getByCompany(req, res, next) {
       requirements: r.requirements,
       qualifications: r.qualifications,
       deadline: r.deadline,
+      companyName: company?.name ?? null,
+      companyLogo: company?.logo ?? null,
       applyByLabel: r.deadline
         ? `Apply by ${new Date(r.deadline).toLocaleDateString("en-US", {
           month: "short",
