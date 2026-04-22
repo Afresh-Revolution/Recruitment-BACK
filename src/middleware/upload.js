@@ -1,18 +1,12 @@
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from "../config/cloudinary.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-/** Single uploads directory: CVs stored here */
-export const UPLOAD_DIR = path.join(__dirname, "../../uploads");
+import { UPLOAD_DIR, ensureUploadDir } from "../utils/uploads.js";
 
 const storage = multer.diskStorage({
   destination(_req, _file, cb) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    ensureUploadDir();
     cb(null, UPLOAD_DIR);
   },
   filename(_req, file, cb) {

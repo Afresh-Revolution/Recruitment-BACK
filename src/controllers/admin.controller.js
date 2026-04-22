@@ -1,16 +1,13 @@
 import bcrypt from "bcrypt";
-import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { Admin } from "../models/Admin.js";
 import { Company } from "../models/Company.js";
 import { FormData } from "../models/FormData.js";
 import { Role } from "../models/Role.js";
 import { generateToken } from "../utils/generateToken.js";
 import { sendApplicationStatusEmail } from "../utils/email.js";
+import { getUploadFilename, resolveUploadPath } from "../utils/uploads.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOAD_DIR = path.join(__dirname, "../../uploads");
 const SALT_ROUNDS = 10;
 
 /** Resume URL for admin UI: prefer data.resumeUrl, then data.attachmentUrl. */
@@ -461,18 +458,19 @@ export async function getOneApplication(req, res, next) {
  */
 export async function serveUploadedFile(req, res, next) {
   try {
-    const { filename } = req.params;
-    if (!filename || filename.includes("..") || path.isAbsolute(filename)) {
+    const safeName = getUploadFilename(req.params.filename);
+    if (!safeName) {
       return res.status(400).json({ ok: false, message: "Invalid filename" });
     }
-    const safeName = path.basename(filename);
-    const filePath = path.join(UPLOAD_DIR, safeName);
+
+    const filePath = resolveUploadPath(safeName);
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
       return res.status(404).json({ ok: false, message: "File not found" });
     }
-    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
-    res.sendFile(safeName, { root: UPLOAD_DIR }, (err) => {
-      if (err) next(err);
+
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.download(filePath, safeName, (err) => {
+      if (err && !res.headersSent) next(err);
     });
   } catch (error) {
     next(error);

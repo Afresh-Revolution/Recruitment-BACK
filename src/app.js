@@ -1,6 +1,4 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
 import cors from "cors";
 import morgan from "morgan";
 
@@ -17,6 +15,7 @@ import { roleRouter } from "./routes/role.routes.js";
 import { formdataRouter } from "./routes/formdata.routes.js";
 import { formrequirementRouter } from "./routes/formrequirement.routes.js";
 import { adminRouter } from "./routes/admin.routes.js";
+import { UPLOAD_DIR, ensureUploadDir } from "./utils/uploads.js";
 
 export function createApp() {
   const app = express();
@@ -29,6 +28,8 @@ export function createApp() {
     cors({
       origin: corsOrigin ? corsOrigin.split(",").map((s) => s.trim()) : true,
       credentials: true,
+      allowedHeaders: ["Authorization", "Content-Type", "Accept"],
+      exposedHeaders: ["Content-Disposition", "Content-Type"],
     })
   );
 
@@ -39,8 +40,8 @@ export function createApp() {
   );
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+  ensureUploadDir();
+  app.use("/uploads", express.static(UPLOAD_DIR));
 
   app.use("/api/upload", uploadRouter);
   app.use("/api/company", companyRouter);
