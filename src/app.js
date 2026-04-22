@@ -15,7 +15,12 @@ import { roleRouter } from "./routes/role.routes.js";
 import { formdataRouter } from "./routes/formdata.routes.js";
 import { formrequirementRouter } from "./routes/formrequirement.routes.js";
 import { adminRouter } from "./routes/admin.routes.js";
-import { UPLOAD_DIR, ensureUploadDir } from "./utils/uploads.js";
+import {
+  DEFAULT_UPLOAD_DIR,
+  UPLOAD_DIR,
+  ensureUploadDir,
+  syncLegacyUploads,
+} from "./utils/uploads.js";
 
 export function createApp() {
   const app = express();
@@ -41,6 +46,12 @@ export function createApp() {
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
   ensureUploadDir();
+  const syncResult = syncLegacyUploads();
+  if (syncResult.copied > 0) {
+    console.log(
+      `Copied ${syncResult.copied} legacy upload(s) from ${DEFAULT_UPLOAD_DIR} to ${UPLOAD_DIR}.`
+    );
+  }
   app.use("/uploads", express.static(UPLOAD_DIR));
 
   app.use("/api/upload", uploadRouter);
