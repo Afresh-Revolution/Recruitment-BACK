@@ -3,10 +3,15 @@ import fs from "fs";
 import { Admin } from "../models/Admin.js";
 import { Company } from "../models/Company.js";
 import { FormData } from "../models/FormData.js";
+import { ResumeAsset } from "../models/ResumeAsset.js";
 import { Role } from "../models/Role.js";
 import { generateToken } from "../utils/generateToken.js";
 import { sendApplicationStatusEmail } from "../utils/email.js";
-import { getUploadFilename, resolveUploadPath } from "../utils/uploads.js";
+import {
+  getStoredUploadFilename,
+  getUploadFilename,
+  resolveUploadPath,
+} from "../utils/uploads.js";
 import {
   buildResumeDownloadUrl,
   getResumeStorageFromData,
@@ -60,6 +65,43 @@ async function findApplicationByResumeFilename(admin, filename) {
   }
 
   return FormData.findOne(filter).select("_id companyId data").lean();
+}
+
+function getResumeDownloadUrl(applicationId) {
+  return `/api/admin/applications/${applicationId}/resume`;
+}
+
+function buildResumeResponseMeta(application, asset) {
+  const data = application?.data || {};
+  const legacyUrl = getResumeUrl(data);
+  const resumeDownloadUrl = getResumeDownloadUrl(application._id);
+
+  return {
+    resumeUrl: legacyUrl,
+    resumeDownloadUrl,
+    resumeStorage: {
+      ...(data.resumeStorage || {}),
+      provider: asset ? "mongodb" : data.resumeStorage?.provider || null,
+      resumeAssetId: asset?._id?.toString?.() || data.resumeStorage?.resumeAssetId || null,
+      filename:
+        asset?.filename ||
+        data.resumeStorage?.filename ||
+        getStoredUploadFilename(legacyUrl || ""),
+      originalName: asset?.originalName || data.resumeStorage?.originalName || null,
+      bytes: asset?.size ?? data.resumeStorage?.bytes ?? null,
+      contentType: asset?.mimeType || data.resumeStorage?.contentType || null,
+      url: legacyUrl,
+    },
+  };
+}
+
+function sendResumeBuffer(res, asset) {
+  const downloadName = asset.originalName || asset.filename || "resume";
+  res.setHeader("Content-Type", asset.mimeType || "application/octet-stream");
+  res.setHeader("Content-Length", String(asset.size || asset.data.length || 0));
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Disposition", `attachment; filename="${downloadName.replace(/"/g, "")}"`);
+  res.send(asset.data);
 }
 
 /**
@@ -462,6 +504,9 @@ export async function listApplications(req, res, next) {
       if (doc.resumeUrl && !doc.data) doc.data = {};
       if (doc.data && !doc.data.resumeUrl && doc.resumeUrl) doc.data.resumeUrl = doc.resumeUrl;
       if (doc.data && !doc.data.attachmentUrl && doc.resumeUrl) doc.data.attachmentUrl = doc.resumeUrl;
+      const resumeDownloadUrl = getResumeDownloadUrl(doc._id);
+      doc.resumeDownloadUrl = resumeDownloadUrl;
+      if (doc.data) doc.data.resumeDownloadUrl = resumeDownloadUrl;
       return doc;
     });
     res.status(200).json({ ok: true, data });
@@ -491,7 +536,59 @@ export async function getOneApplication(req, res, next) {
     doc.resumeUrl = getResumeUrl(doc.data);
     if (doc.data && !doc.data.resumeUrl && doc.resumeUrl) doc.data.resumeUrl = doc.resumeUrl;
     if (doc.data && !doc.data.attachmentUrl && doc.resumeUrl) doc.data.attachmentUrl = doc.resumeUrl;
+    const resumeDownloadUrl = getResumeDownloadUrl(doc._id);
+    doc.resumeDownloadUrl = resumeDownloadUrl;
+    if (doc.data) doc.data.resumeDownloadUrl = resumeDownloadUrl;
     res.status(200).json({ ok: true, data: doc });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/admin/applications/:id/resume
+ * Download one application's resume. Prefers MongoDB resume bytes, then falls back to legacy URL-based storage.
+ */
+export async function downloadApplicationResume(req, res, next) {
+  try {
+    const application = await FormData.findById(req.params.id).select("_id companyId data").lean();
+    if (!application) {
+      return res.status(404).json({ ok: false, message: "Application not found" });
+    }
+    if (!hasAdminAccessToApplication(req.admin, application)) {
+      return res.status(403).json({ ok: false, message: "You can only download resumes for your company" });
+    }
+
+    const resumeAsset = await ResumeAsset.findOne({ applicationId: application._id })
+      .select("filename originalName mimeType size data")
+      .lean();
+
+    if (resumeAsset?.data) {
+      return sendResumeBuffer(res, resumeAsset);
+    }
+
+    const legacyUrl = getResumeUrl(application.data);
+    const legacyFilename = getStoredUploadFilename(legacyUrl || "");
+    if (!legacyFilename) {
+      return res.status(404).json({ ok: false, message: "Resume not found" });
+    }
+
+    const localUpload = getLocalUploadInfo(legacyFilename);
+    if (localUpload.exists && localUpload.filePath) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.download(localUpload.filePath, legacyFilename, (err) => {
+        if (err && !res.headersSent) next(err);
+      });
+    }
+
+    const resumeStorage = getResumeStorageFromData(application.data);
+    const downloadUrl = buildResumeDownloadUrl(resumeStorage);
+    if (!downloadUrl) {
+      return res.status(404).json({ ok: false, message: "Resume not found" });
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    res.redirect(downloadUrl);
   } catch (error) {
     next(error);
   }
@@ -509,7 +606,14 @@ export async function getUploadDiagnostics(req, res, next) {
     }
 
     const application = await findApplicationByResumeFilename(req.admin, safeName);
-    const resumeStorage = getResumeStorageFromData(application?.data);
+    const resumeAsset = application?._id
+      ? await ResumeAsset.findOne({ applicationId: application._id })
+          .select("_id filename originalName mimeType size")
+          .lean()
+      : null;
+    const { resumeDownloadUrl, resumeStorage } = application
+      ? buildResumeResponseMeta(application, resumeAsset)
+      : { resumeDownloadUrl: null, resumeStorage: getResumeStorageFromData(application?.data) };
     const localUpload = getLocalUploadInfo(safeName);
 
     res.status(200).json({
@@ -522,6 +626,8 @@ export async function getUploadDiagnostics(req, res, next) {
         exists: localUpload.exists,
         size: localUpload.size,
         storage: resumeStorage || null,
+        resumeAssetId: resumeAsset?._id?.toString?.() || null,
+        applicationDownloadUrl: resumeDownloadUrl,
         adminDownloadUrl: `/api/admin/uploads/${encodeURIComponent(safeName)}`,
       },
     });
@@ -553,6 +659,13 @@ export async function serveUploadedFile(req, res, next) {
     const application = await findApplicationByResumeFilename(req.admin, safeName);
     if (!application || !hasAdminAccessToApplication(req.admin, application)) {
       return res.status(404).json({ ok: false, message: "File not found" });
+    }
+
+    const resumeAsset = await ResumeAsset.findOne({ applicationId: application._id })
+      .select("filename originalName mimeType size data")
+      .lean();
+    if (resumeAsset?.data) {
+      return sendResumeBuffer(res, resumeAsset);
     }
 
     const resumeStorage = getResumeStorageFromData(application.data);
@@ -606,6 +719,7 @@ export async function deleteApplication(req, res, next) {
     if (admin.role === "company_admin" && admin.companyId && !admin.companyId.equals(application.companyId)) {
       return res.status(403).json({ ok: false, message: "You can only delete applications for your company" });
     }
+    await ResumeAsset.findOneAndDelete({ applicationId: application._id });
     await FormData.findByIdAndDelete(id);
     res.status(200).json({ ok: true, data: { _id: id, deleted: true } });
   } catch (error) {

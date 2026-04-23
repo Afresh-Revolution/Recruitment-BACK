@@ -1,6 +1,8 @@
+import fs from "fs";
 import { FormData } from "../models/FormData.js";
 import { Company } from "../models/Company.js";
 import { Role } from "../models/Role.js";
+import { ResumeAsset } from "../models/ResumeAsset.js";
 import { sendApplicationReceivedEmail } from "../utils/email.js";
 import {
   getResumeStorageFromFile,
@@ -8,6 +10,15 @@ import {
 } from "../utils/resumeStorage.js";
 
 const TOP_LEVEL_KEYS = ["companyId", "roleId", "applicantId"];
+
+function getResumeBuffer(file) {
+  if (!file) return null;
+  if (Buffer.isBuffer(file.buffer)) return file.buffer;
+  if (typeof file.path === "string" && file.path && fs.existsSync(file.path)) {
+    return fs.readFileSync(file.path);
+  }
+  return null;
+}
 
 /**
  * POST /api/formdata/apply – single endpoint: multipart form with optional "resume" file
@@ -62,7 +73,6 @@ export async function createWithResume(req, res, next) {
 
     data.resumeUrl = resumeUrl;
     data.attachmentUrl = resumeUrl;
-    data.resumeStorage = resumeStorage;
 
     const doc = await FormData.create({
       companyId,
@@ -70,6 +80,55 @@ export async function createWithResume(req, res, next) {
       applicantId,
       data,
     });
+
+    const resumeBuffer = getResumeBuffer(req.file);
+    if (!resumeBuffer) {
+      await FormData.findByIdAndDelete(doc._id);
+      return res.status(500).json({
+        ok: false,
+        message: "Resume upload completed, but the file bytes could not be read for MongoDB storage.",
+      });
+    }
+
+    let resumeAsset;
+    try {
+      resumeAsset = await ResumeAsset.findOneAndUpdate(
+        { applicationId: doc._id },
+        {
+          applicationId: doc._id,
+          companyId,
+          roleId,
+          filename: resumeStorage.filename,
+          originalName: req.file.originalname || resumeStorage.filename,
+          mimeType: req.file.mimetype || "application/octet-stream",
+          size: typeof req.file.size === "number" ? req.file.size : resumeBuffer.length,
+          data: resumeBuffer,
+        },
+        { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+      );
+    } catch (assetError) {
+      await FormData.findByIdAndDelete(doc._id);
+      throw assetError;
+    }
+
+    const resumeDownloadUrl = `/api/admin/applications/${doc._id}/resume`;
+    doc.data.resumeStorage = {
+      provider: "mongodb",
+      resumeAssetId: resumeAsset._id.toString(),
+      filename: resumeAsset.filename,
+      originalName: resumeAsset.originalName,
+      bytes: resumeAsset.size,
+      contentType: resumeAsset.mimeType,
+      url: resumeUrl,
+    };
+    doc.data.resumeDownloadUrl = resumeDownloadUrl;
+    try {
+      await doc.save();
+    } catch (saveError) {
+      await ResumeAsset.findOneAndDelete({ applicationId: doc._id });
+      await FormData.findByIdAndDelete(doc._id);
+      throw saveError;
+    }
 
     // Automatically send "application received" email to applicant (non-blocking; don't fail request)
     const applicantEmail = data.email;

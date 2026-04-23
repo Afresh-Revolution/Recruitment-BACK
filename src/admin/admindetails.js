@@ -26,8 +26,9 @@ function formatDisplayId(id) {
 function toDetailView(app) {
   const fullName = app.data?.fullName ?? app.data?.name ?? "";
   const email = app.data?.email ?? "";
-  const documents = app.data?.resumeUrl
-    ? [{ name: "Resume.pdf", url: app.data.resumeUrl, type: "PDF Document" }]
+  const resumeDocumentUrl = app.resumeDownloadUrl || app.data?.resumeDownloadUrl || app.data?.resumeUrl;
+  const documents = resumeDocumentUrl
+    ? [{ name: "Resume.pdf", url: resumeDocumentUrl, type: "PDF Document" }]
     : (app.data?.documents || []).map((d) => ({ name: d.name || d.filename || "Document", url: d.url || d.path, type: d.type || "Document" }));
   return {
     id: app._id,
