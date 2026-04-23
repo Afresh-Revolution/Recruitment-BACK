@@ -1,13 +1,18 @@
 import express from "express";
 import multer from "multer";
 import * as formdataController from "../controllers/formdata.controller.js";
-import { resumeUpload } from "../middleware/upload.js";
+import { finalizeResumeUpload, resumeUpload } from "../middleware/upload.js";
 
 export const formdataRouter = express.Router();
 
 formdataRouter.get("/", formdataController.getByCompany);
 /** Single request: multipart form with optional "resume" file + application fields. Stores CV and application. */
-formdataRouter.post("/apply", resumeUpload.single("resume"), formdataController.createWithResume);
+formdataRouter.post(
+  "/apply",
+  resumeUpload.single("resume"),
+  finalizeResumeUpload,
+  formdataController.createWithResume
+);
 // formdataRouter.post("/", formdataController.create); // Removed to prevent applicant bypass via JSON-only endpoint
 
 formdataRouter.patch("/:id", formdataController.update);

@@ -3,8 +3,13 @@ import path from "path";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from "../config/cloudinary.js";
 import { UPLOAD_DIR, ensureUploadDir } from "../utils/uploads.js";
+import {
+  buildLocalResumeAsset,
+  RESUME_CLOUDINARY_ENABLED,
+  storeResumeInCloudinary,
+} from "../utils/resumeStorage.js";
 
-const storage = multer.diskStorage({
+const localResumeStorage = multer.diskStorage({
   destination(_req, _file, cb) {
     ensureUploadDir();
     cb(null, UPLOAD_DIR);
@@ -19,7 +24,7 @@ const storage = multer.diskStorage({
 
 /** Multer for resume/CV: PDF or Word. Max 10 MB. Use field name "resume". */
 export const resumeUpload = multer({
-  storage,
+  storage: RESUME_CLOUDINARY_ENABLED ? multer.memoryStorage() : localResumeStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter(_req, file, cb) {
     const allowed =
@@ -29,6 +34,20 @@ export const resumeUpload = multer({
     else cb(new Error("Only PDF or Word (pdf, doc, docx) are allowed for resume."));
   },
 });
+
+export async function finalizeResumeUpload(req, _res, next) {
+  try {
+    if (!req.file) return next();
+
+    req.file.resumeStorage = RESUME_CLOUDINARY_ENABLED
+      ? await storeResumeInCloudinary(req.file)
+      : buildLocalResumeAsset(req.file);
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
 
 /** Cloudinary storage for images */
 const cloudinaryStorage = new CloudinaryStorage({

@@ -76,6 +76,36 @@ export function getUploadFilename(value) {
   return candidate;
 }
 
+export function getStoredUploadFilename(value) {
+  if (typeof value !== "string") return null;
+
+  let candidate = value.trim();
+  if (!candidate) return null;
+
+  if (/^https?:\/\//i.test(candidate)) {
+    try {
+      candidate = new URL(candidate).pathname;
+    } catch {
+      return null;
+    }
+  }
+
+  candidate = candidate.split(/[?#]/, 1)[0].replace(/\\/g, "/");
+  const filename = path.posix.basename(candidate);
+
+  if (
+    !filename ||
+    filename === "." ||
+    filename === ".." ||
+    filename.includes("/") ||
+    filename.includes("\\")
+  ) {
+    return null;
+  }
+
+  return filename;
+}
+
 export function resolveUploadPath(value) {
   const filename = getUploadFilename(value);
   if (!filename) return null;

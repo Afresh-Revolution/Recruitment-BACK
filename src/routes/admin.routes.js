@@ -23,6 +23,7 @@ adminRouter.get("/applications/summary", adminController.listApplicationSummary)
 adminRouter.get("/applications/export-csv", adminController.exportApplicationsCsv);
 adminRouter.get("/applications", adminController.listApplications);
 adminRouter.get("/applications/:id", adminController.getOneApplication);
+adminRouter.get("/uploads/:filename/debug", adminController.getUploadDiagnostics);
 // Admin-only file download (Bearer token). Use for resume when behind auth.
 adminRouter.get("/uploads/:filename", adminController.serveUploadedFile);
 adminRouter.patch("/applications/:id/status", adminController.setApplicationStatus);

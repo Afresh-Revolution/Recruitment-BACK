@@ -2,6 +2,10 @@ import { FormData } from "../models/FormData.js";
 import { Company } from "../models/Company.js";
 import { Role } from "../models/Role.js";
 import { sendApplicationReceivedEmail } from "../utils/email.js";
+import {
+  getResumeStorageFromFile,
+  getResumeUrlFromFile,
+} from "../utils/resumeStorage.js";
 
 const TOP_LEVEL_KEYS = ["companyId", "roleId", "applicantId"];
 
@@ -46,9 +50,19 @@ export async function createWithResume(req, res, next) {
       if (value !== undefined && value !== "") data[key] = value;
     }
 
-    const resumeUrl = `/uploads/${req.file.filename}`;
+    const resumeUrl = getResumeUrlFromFile(req.file);
+    const resumeStorage = getResumeStorageFromFile(req.file);
+
+    if (!resumeUrl || !resumeStorage?.filename) {
+      return res.status(500).json({
+        ok: false,
+        message: "Resume upload completed, but the stored file details are missing.",
+      });
+    }
+
     data.resumeUrl = resumeUrl;
     data.attachmentUrl = resumeUrl;
+    data.resumeStorage = resumeStorage;
 
     const doc = await FormData.create({
       companyId,

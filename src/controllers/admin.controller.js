@@ -7,13 +7,59 @@ import { Role } from "../models/Role.js";
 import { generateToken } from "../utils/generateToken.js";
 import { sendApplicationStatusEmail } from "../utils/email.js";
 import { getUploadFilename, resolveUploadPath } from "../utils/uploads.js";
+import {
+  buildResumeDownloadUrl,
+  getResumeStorageFromData,
+} from "../utils/resumeStorage.js";
 
 const SALT_ROUNDS = 10;
 
 /** Resume URL for admin UI: prefer data.resumeUrl, then data.attachmentUrl. */
 function getResumeUrl(data) {
-  const url = data?.resumeUrl ?? data?.attachmentUrl ?? null;
+  const url = data?.resumeUrl ?? data?.attachmentUrl ?? data?.resumeStorage?.url ?? null;
   return typeof url === "string" && url.trim() !== "" ? url.trim() : null;
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasAdminAccessToApplication(admin, application) {
+  if (!application) return false;
+  if (admin.role !== "company_admin" || !admin.companyId) return true;
+  return admin.companyId.equals
+    ? admin.companyId.equals(application.companyId)
+    : String(admin.companyId) === String(application.companyId);
+}
+
+function getLocalUploadInfo(filename) {
+  const filePath = resolveUploadPath(filename);
+  if (!filePath || !fs.existsSync(filePath)) {
+    return { filePath, exists: false, size: null };
+  }
+
+  const stats = fs.statSync(filePath);
+  return {
+    filePath,
+    exists: stats.isFile(),
+    size: stats.isFile() ? stats.size : null,
+  };
+}
+
+async function findApplicationByResumeFilename(admin, filename) {
+  const filter = {
+    $or: [
+      { "data.resumeStorage.filename": filename },
+      { "data.resumeUrl": { $regex: new RegExp(`${escapeRegex(filename)}(?:[?#].*)?$`, "i") } },
+      { "data.attachmentUrl": { $regex: new RegExp(`${escapeRegex(filename)}(?:[?#].*)?$`, "i") } },
+    ],
+  };
+
+  if (admin.role === "company_admin" && admin.companyId) {
+    filter.companyId = admin.companyId;
+  }
+
+  return FormData.findOne(filter).select("_id companyId data").lean();
 }
 
 /**
@@ -452,6 +498,39 @@ export async function getOneApplication(req, res, next) {
 }
 
 /**
+ * GET /api/admin/uploads/:filename/debug
+ * Returns the stored DB value plus the resolved file path and existence check for one filename.
+ */
+export async function getUploadDiagnostics(req, res, next) {
+  try {
+    const safeName = getUploadFilename(req.params.filename);
+    if (!safeName) {
+      return res.status(400).json({ ok: false, message: "Invalid filename" });
+    }
+
+    const application = await findApplicationByResumeFilename(req.admin, safeName);
+    const resumeStorage = getResumeStorageFromData(application?.data);
+    const localUpload = getLocalUploadInfo(safeName);
+
+    res.status(200).json({
+      ok: true,
+      data: {
+        filename: safeName,
+        applicationId: application?._id || null,
+        dbValue: getResumeUrl(application?.data) || null,
+        resolvedFilePath: localUpload.filePath || null,
+        exists: localUpload.exists,
+        size: localUpload.size,
+        storage: resumeStorage || null,
+        adminDownloadUrl: `/api/admin/uploads/${encodeURIComponent(safeName)}`,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * GET /api/admin/uploads/:filename
  * Serve an uploaded file (e.g. resume) with admin auth. Use when downloads are behind auth.
  * Frontend: GET baseUrl + "/api/admin/uploads/" + filename with Authorization: Bearer <token>.
@@ -463,15 +542,27 @@ export async function serveUploadedFile(req, res, next) {
       return res.status(400).json({ ok: false, message: "Invalid filename" });
     }
 
-    const filePath = resolveUploadPath(safeName);
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    const localUpload = getLocalUploadInfo(safeName);
+    if (localUpload.exists && localUpload.filePath) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.download(localUpload.filePath, safeName, (err) => {
+        if (err && !res.headersSent) next(err);
+      });
+    }
+
+    const application = await findApplicationByResumeFilename(req.admin, safeName);
+    if (!application || !hasAdminAccessToApplication(req.admin, application)) {
       return res.status(404).json({ ok: false, message: "File not found" });
     }
 
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.download(filePath, safeName, (err) => {
-      if (err && !res.headersSent) next(err);
-    });
+    const resumeStorage = getResumeStorageFromData(application.data);
+    const downloadUrl = buildResumeDownloadUrl(resumeStorage);
+    if (!downloadUrl) {
+      return res.status(404).json({ ok: false, message: "File not found" });
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    res.redirect(downloadUrl);
   } catch (error) {
     next(error);
   }

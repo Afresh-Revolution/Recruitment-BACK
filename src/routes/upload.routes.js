@@ -1,6 +1,11 @@
 import express from "express";
 import multer from "multer";
-import { resumeUpload, imageUpload } from "../middleware/upload.js";
+import {
+  resumeUpload,
+  imageUpload,
+  finalizeResumeUpload,
+} from "../middleware/upload.js";
+import { getResumeStorageFromFile } from "../utils/resumeStorage.js";
 
 export const uploadRouter = express.Router();
 
@@ -24,17 +29,27 @@ uploadRouter.post("/", imageUpload.single("image"), (req, res, next) => {
  * Field name: "resume" (multipart/form-data). PDF or Word. Max 10 MB.
  * Returns: { ok, url, filename } – use url in application (e.g. data.resumeUrl).
  */
-uploadRouter.post("/resume", resumeUpload.single("resume"), (req, res, next) => {
+uploadRouter.post("/resume", resumeUpload.single("resume"), finalizeResumeUpload, (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({
       ok: false,
       message: "No file sent. Use form field name 'resume' and multipart/form-data (PDF or Word).",
     });
   }
+
+  const storedResume = getResumeStorageFromFile(req.file);
+  if (!storedResume?.url || !storedResume?.filename) {
+    return res.status(500).json({
+      ok: false,
+      message: "Resume upload completed, but the stored file details are missing.",
+    });
+  }
+
   res.status(201).json({
     ok: true,
-    url: `/uploads/${req.file.filename}`,
-    filename: req.file.filename,
+    url: storedResume.url,
+    filename: storedResume.filename,
+    storage: storedResume.provider || null,
   });
 });
 
